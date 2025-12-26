@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "property-1",
+      "description": "Modern storefront with large windows.",
+      "imageUrl": "https://images.unsplash.com/photo-1759153820384-12c9ddf8bd8d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxzdG9yZWZyb250JTIwbW9kZXJufGVufDB8fHx8MTc2NjcxMDQ1NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "storefront modern"
+    },
+    {
+      "id": "property-2",
+      "description": "Cozy boutique shop with a brick facade.",
+      "imageUrl": "https://images.unsplash.com/photo-1728889928549-ef41364b4116?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Ym91dGlxdWUlMjBzaG9wfGVufDB8fHx8MTc2NjcxMDQ1NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "boutique shop"
+    },
+    {
+      "id": "property-3",
+      "description": "Spacious retail unit in a shopping mall.",
+      "imageUrl": "https://images.unsplash.com/photo-1546213290-e1b492ab3eee?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxyZXRhaWwlMjBzcGFjZXxlbnwwfHx8fDE3NjY3MTA0NTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "retail space"
+    },
+    {
+      "id": "property-4",
+      "description": "Small corner shop with a bright awning.",
+      "imageUrl": "https://images.unsplash.com/photo-1645717476344-f46c2263cd84?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxjb3JuZXIlMjBzaG9wfGVufDB8fHx8MTc2NjcxMDQ1NHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "corner shop"
+    },
+    {
+      "id": "property-5",
+      "description": "Office space with an open-plan layout.",
+      "imageUrl": "https://images.unsplash.com/photo-1505409859467-3a796fd5798e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxvZmZpY2UlMjBzcGFjZXxlbnwwfHx8fDE3NjY3MTA0NTR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "office space"
+    },
+    {
+      "id": "property-6",
+      "description": "Restaurant space with an outdoor patio.",
+      "imageUrl": "https://images.unsplash.com/photo-1759866614095-d867221143f7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxyZXN0YXVyYW50JTIwcGF0aW98ZW58MHx8fHwxNzY2Njg2Njc4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "restaurant patio"
+    }
+  ]
 }
