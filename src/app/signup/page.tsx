@@ -23,6 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAuth } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -50,10 +52,15 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [role, setRole] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
 
-  const handleSignup = (event: React.FormEvent<HTMLFormElement>) => {
+
+  const handleSignup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!role) {
       toast({
@@ -63,18 +70,33 @@ export default function SignupPage() {
       });
       return;
     }
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Firebase Error',
+            description: 'Authentication service is not available.',
+        });
+        return;
+    }
     setIsLoading(true);
 
-    // Simulate API call for signup
-    setTimeout(() => {
-      // In a real app, you would create the user here with the selected role
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      // In a real app, you might want to store the user's name and role in Firestore
       toast({
         title: 'Account Created',
         description: "You can now log in with your new account.",
       });
       router.push('/login');
-      setIsLoading(false);
-    }, 1000);
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Sign-up Failed',
+            description: error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
@@ -100,6 +122,8 @@ export default function SignupPage() {
                 type="text"
                 placeholder="John Doe"
                 required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -109,6 +133,8 @@ export default function SignupPage() {
                 type="email"
                 placeholder="admin@example.com"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -117,6 +143,8 @@ export default function SignupPage() {
                 id="password" 
                 type="password" 
                 required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <div className="space-y-2">

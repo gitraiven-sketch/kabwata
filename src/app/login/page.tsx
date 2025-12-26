@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth, useUser } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -24,7 +26,7 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
-      viewBox="0 0 24 24"
+      viewBox="0 0 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -43,35 +45,49 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
+  const { user, isLoading: isUserLoading } = useUser();
   const [isLoading, setIsLoading] = useState(false);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [email, setEmail] = useState('admin@example.com');
+  const [password, setPassword] = useState('password');
 
   useEffect(() => {
-    if (localStorage.getItem('isLoggedIn')) {
+    if (!isUserLoading && user) {
       router.replace('/dashboard');
-    } else {
-      setIsCheckingAuth(false);
     }
-  }, [router]);
+  }, [user, isUserLoading, router]);
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Firebase Error',
+            description: 'Authentication service is not available.',
+        });
+        return;
+    }
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      // In a real app, you'd verify credentials here
-      localStorage.setItem('isLoggedIn', 'true');
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       toast({
         title: 'Login Successful',
-        description: "Welcome back, Admin!",
+        description: "Welcome back!",
       });
       router.push('/dashboard');
-      setIsLoading(false);
-    }, 1000);
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
   };
-
-  if (isCheckingAuth) {
+  
+  if (isUserLoading || (!isUserLoading && user)) {
     return (
        <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -102,7 +118,8 @@ export default function LoginPage() {
                 type="email"
                 placeholder="admin@example.com"
                 required
-                defaultValue="admin@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -111,7 +128,8 @@ export default function LoginPage() {
                 id="password" 
                 type="password" 
                 required 
-                defaultValue="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </CardContent>
