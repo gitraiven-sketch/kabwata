@@ -86,7 +86,7 @@ export function PropertyList({ properties }: { properties: Property[] }) {
                 <p className="text-sm text-muted-foreground">{property.address}</p>
               </CardContent>
               <CardFooter>
-                <p className="text-lg font-semibold">${property.rentAmount.toLocaleString()}
+                <p className="text-lg font-semibold">K{property.rentAmount.toLocaleString()}
                   <span className="text-sm font-normal text-muted-foreground">/month</span>
                 </p>
               </CardFooter>

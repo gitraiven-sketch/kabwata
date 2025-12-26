@@ -34,7 +34,7 @@ const rentReminderPrompt = ai.definePrompt({
   output: {schema: RentReminderOutputSchema},
   prompt: `Dear {{tenantName}},
 
-This is a friendly reminder that your rent payment of ${{rentAmount}} for {{propertyName}} is due on {{dueDate}}.
+This is a friendly reminder that your rent payment of K{{rentAmount}} for {{propertyName}} is due on {{dueDate}}.
 
 Please make your payment on time to avoid any late fees.
 

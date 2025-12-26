@@ -35,7 +35,7 @@ export function UserNav() {
           <Avatar className="h-9 w-9">
             <AvatarImage src={user?.photoURL ?? `https://i.pravatar.cc/150?u=${user?.uid}`} alt={user?.displayName ?? 'User'} />
             <AvatarFallback>
-              <User />
+              {user?.displayName ? user.displayName.charAt(0) : <User />}
             </AvatarFallback>
           </Avatar>
         </Button>

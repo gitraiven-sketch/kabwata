@@ -79,7 +79,7 @@ export function PaymentHistory({ tenants }: { tenants: TenantWithDetails[] }) {
                   <TableCell>{payment.propertyName}</TableCell>
                   <TableCell>{format(payment.date, 'PPP')}</TableCell>
                   <TableCell className="text-right">
-                    ${payment.amount.toLocaleString()}
+                    K{payment.amount.toLocaleString()}
                   </TableCell>
                 </TableRow>
               ))

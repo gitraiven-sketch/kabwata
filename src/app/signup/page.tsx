@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/firebase';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -54,7 +54,7 @@ export default function SignupPage() {
   const { toast } = useToast();
   const auth = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState('admin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -82,6 +82,7 @@ export default function SignupPage() {
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, { displayName: name });
       await sendEmailVerification(userCredential.user);
       
       toast({
@@ -150,7 +151,7 @@ export default function SignupPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
-              <Select value={role} onValueChange={setRole}>
+              <Select value={role} onValueChange={setRole} defaultValue="admin">
                 <SelectTrigger id="role">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>

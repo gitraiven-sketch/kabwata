@@ -69,7 +69,7 @@ export default async function DashboardPage() {
                       </TableCell>
                       <TableCell>{tenant.property.name}</TableCell>
                       <TableCell className="text-right">
-                        ${tenant.rentAmount.toLocaleString()}
+                        K{tenant.rentAmount.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatDistanceToNow(tenant.dueDate, { addSuffix: true })}

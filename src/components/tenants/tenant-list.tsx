@@ -123,7 +123,7 @@ export function TenantList({ tenants }: { tenants: TenantWithDetails[] }) {
                     </div>
                   </TableCell>
                   <TableCell>{tenant.property.name}</TableCell>
-                  <TableCell>${tenant.rentAmount.toLocaleString()}</TableCell>
+                  <TableCell>K{tenant.rentAmount.toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={statusStyles[tenant.paymentStatus]}>
                       {tenant.paymentStatus}

@@ -105,7 +105,7 @@ export function RentReminder({ tenants }: { tenants: TenantWithDetails[] }) {
         {selectedTenant && (
             <div className='grid sm:grid-cols-3 gap-4 text-sm'>
                 <div><span className='font-medium text-muted-foreground'>Due Date:</span> {format(selectedTenant.dueDate, 'PPP')}</div>
-                <div><span className='font-medium text-muted-foreground'>Amount:</span> ${selectedTenant.rentAmount.toLocaleString()}</div>
+                <div><span className='font-medium text-muted-foreground'>Amount:</span> K{selectedTenant.rentAmount.toLocaleString()}</div>
                 <div><span className='font-medium text-muted-foreground'>Status:</span> {selectedTenant.paymentStatus}</div>
             </div>
         )}
