@@ -82,7 +82,7 @@ export default function DashboardLayout({
                     asChild
                     tooltip={{ children: 'Tenants', side: 'right' }}
                   >
-                    <Link href="/dashboard/tenants">
+                    <Link href="/tenants">
                       <Users />
                       <span>Tenants</span>
                     </Link>
@@ -93,7 +93,7 @@ export default function DashboardLayout({
                     asChild
                     tooltip={{ children: 'Properties', side: 'right' }}
                   >
-                    <Link href="/dashboard/properties">
+                    <Link href="/properties">
                       <Building />
                       <span>Properties</span>
                     </Link>
@@ -104,7 +104,7 @@ export default function DashboardLayout({
                     asChild
                     tooltip={{ children: 'Reminders', side: 'right' }}
                   >
-                    <Link href="/dashboard/reminders">
+                    <Link href="/reminders">
                       <Bell />
                       <span>Reminders</span>
                     </Link>
@@ -115,7 +115,7 @@ export default function DashboardLayout({
                     asChild
                     tooltip={{ children: 'Payment History', side: 'right' }}
                   >
-                    <Link href="/dashboard/history">
+                    <Link href="/history">
                       <History />
                       <span>Payment History</span>
                     </Link>

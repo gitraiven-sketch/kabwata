@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -44,14 +51,23 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [role, setRole] = useState('');
 
   const handleSignup = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!role) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please select a role for the new user.',
+      });
+      return;
+    }
     setIsLoading(true);
 
     // Simulate API call for signup
     setTimeout(() => {
-      // In a real app, you would create the user here
+      // In a real app, you would create the user here with the selected role
       toast({
         title: 'Account Created',
         description: "You can now log in with your new account.",
@@ -102,6 +118,19 @@ export default function SignupPage() {
                 type="password" 
                 required 
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger id="role">
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="builder">Builder</SelectItem>
+                  <SelectItem value="worker">Worker</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
