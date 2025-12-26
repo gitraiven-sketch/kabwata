@@ -16,6 +16,7 @@ const RentReminderInputSchema = z.object({
   rentAmount: z.number().describe('The amount of rent due.'),
   dueDate: z.string().describe('The due date for the rent payment (e.g., "15th July, 2024").'),
   phoneNumber: z.string().describe('The tenant phone number to send the reminder to'),
+  dueDateProximity: z.string().describe('A phrase describing how close the due date is (e.g., "in 3 days", "in 2 days", "tomorrow", "today"). This will be used to tailor the urgency of the message.')
 });
 export type RentReminderInput = z.infer<typeof RentReminderInputSchema>;
 
@@ -39,8 +40,13 @@ Here is the information:
 - Property: {{propertyName}}
 - Rent Amount: K{{rentAmount}}
 - Due Date: {{dueDate}}
+- Due Date Proximity: The rent is due {{dueDateProximity}}.
 
-The message should be friendly and clear. Start with "Dear {{tenantName}}," and end with "Thank you, Kabwata Shopping Complex Management".`,
+The message should be friendly and clear. Start with "Dear {{tenantName}},".
+Tailor the message urgency based on the proximity.
+- If the payment is due "today", the message should be a final reminder to pay now.
+- If it's due "tomorrow" or in a few days, it should be a gentle reminder.
+End with "Thank you, Kabwata Shopping Complex Management".`,
 });
 
 

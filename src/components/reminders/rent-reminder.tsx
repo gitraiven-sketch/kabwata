@@ -10,54 +10,49 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Textarea } from '@/components/ui/textarea';
 import type { TenantWithDetails } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { generateRentReminder } from '@/ai/flows/automated-rent-reminders';
 import { format } from 'date-fns';
-import { Loader2, Wand2 } from 'lucide-react';
+import { Loader2, Wand2, User, Building } from 'lucide-react';
 
-export function RentReminder({ tenants }: { tenants: TenantWithDetails[] }) {
-  const [selectedTenantId, setSelectedTenantId] = React.useState<string>('');
+type CategorizedTenants = {
+  dueIn3Days: TenantWithDetails[];
+  dueIn2Days: TenantWithDetails[];
+  dueIn1Day: TenantWithDetails[];
+  dueToday: TenantWithDetails[];
+  overdue: TenantWithDetails[];
+}
+
+function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, proximity: string }) {
   const [generatedMessage, setGeneratedMessage] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const { toast } = useToast();
-  
-  const selectedTenant = tenants.find((t) => t.id === selectedTenantId);
 
   const handleGenerateReminder = async () => {
-    if (!selectedTenant) {
-      toast({
-        variant: 'destructive',
-        title: 'No Tenant Selected',
-        description: 'Please select a tenant to generate a reminder.',
-      });
-      return;
-    }
-
     setIsLoading(true);
     setGeneratedMessage('');
 
     try {
       const result = await generateRentReminder({
-        tenantName: selectedTenant.name,
-        propertyName: selectedTenant.property.name,
-        rentAmount: selectedTenant.rentAmount,
-        dueDate: format(selectedTenant.dueDate, 'do MMMM, yyyy'),
-        phoneNumber: selectedTenant.phone,
+        tenantName: tenant.name,
+        propertyName: tenant.property.name,
+        rentAmount: tenant.rentAmount,
+        dueDate: format(tenant.dueDate, 'do MMMM, yyyy'),
+        phoneNumber: tenant.phone,
+        dueDateProximity: proximity,
       });
       setGeneratedMessage(result.message);
       toast({
         title: 'Reminder Generated',
-        description: 'You can now review and send the message.',
+        description: `Message for ${tenant.name} is ready.`,
       });
     } catch (error) {
       console.error('Failed to generate reminder:', error);
@@ -72,65 +67,86 @@ export function RentReminder({ tenants }: { tenants: TenantWithDetails[] }) {
   };
 
   const handleSend = () => {
-    if (!selectedTenant || !generatedMessage) return;
-    const whatsappLink = `https://wa.me/${selectedTenant.phone.replace('+', '')}?text=${encodeURIComponent(generatedMessage)}`;
+    if (!generatedMessage) return;
+    const whatsappLink = `https://wa.me/${tenant.phone.replace('+', '')}?text=${encodeURIComponent(generatedMessage)}`;
     window.open(whatsappLink, '_blank');
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Automated Rent Reminders</CardTitle>
-        <CardDescription>
-          Select a tenant to generate a personalized WhatsApp rent reminder using AI.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="tenant-select">Select Tenant</Label>
-          <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
-            <SelectTrigger id="tenant-select">
-              <SelectValue placeholder="Choose a tenant..." />
-            </SelectTrigger>
-            <SelectContent>
-              {tenants.map((tenant) => (
-                <SelectItem key={tenant.id} value={tenant.id}>
-                  {tenant.name} - {tenant.property.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <Card className="flex flex-col">
+      <CardHeader className="flex-row items-start justify-between gap-4 pb-4">
+        <div>
+           <CardTitle className="text-base">{tenant.name}</CardTitle>
+          <CardDescription className="flex items-center gap-1 text-xs"><Building className="h-3 w-3" />{tenant.property.name}</CardDescription>
         </div>
-        
-        {selectedTenant && (
-            <div className='grid sm:grid-cols-3 gap-4 text-sm'>
-                <div><span className='font-medium text-muted-foreground'>Due Date:</span> {format(selectedTenant.dueDate, 'PPP')}</div>
-                <div><span className='font-medium text-muted-foreground'>Amount:</span> K{selectedTenant.rentAmount.toLocaleString()}</div>
-                <div><span className='font-medium text-muted-foreground'>Status:</span> {selectedTenant.paymentStatus}</div>
-            </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="message">Generated Message</Label>
-          <Textarea
-            id="message"
+         <div className="text-right">
+            <div className="font-bold">K{tenant.rentAmount.toLocaleString()}</div>
+            <div className="text-xs text-muted-foreground">{format(tenant.dueDate, 'do MMM')}</div>
+        </div>
+      </CardHeader>
+      <CardContent className="flex-grow space-y-2">
+         <Textarea
+            id={`message-${tenant.id}`}
             placeholder="AI-generated message will appear here..."
             value={generatedMessage}
             onChange={(e) => setGeneratedMessage(e.target.value)}
-            rows={6}
-            className="bg-muted/40"
+            rows={5}
+            className="bg-muted/40 text-sm"
           />
-        </div>
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={handleGenerateReminder} disabled={isLoading || !selectedTenant}>
+        <Button size="sm" variant="outline" onClick={handleGenerateReminder} disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-          Generate Message
+          Generate
         </Button>
-        <Button onClick={handleSend} disabled={!generatedMessage}>
+        <Button size="sm" onClick={handleSend} disabled={!generatedMessage}>
           Send via WhatsApp
         </Button>
       </CardFooter>
     </Card>
+  )
+}
+
+
+function ReminderCategory({ title, tenants, proximity }: { title: string, tenants: TenantWithDetails[], proximity: string }) {
+  if (tenants.length === 0) return null;
+  
+  return (
+    <AccordionItem value={title}>
+      <AccordionTrigger className="text-lg font-semibold">
+        {title} ({tenants.length})
+      </AccordionTrigger>
+      <AccordionContent>
+        {tenants.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tenants.map(tenant => (
+              <TenantReminderCard key={tenant.id} tenant={tenant} proximity={proximity}/>
+            ))}
+          </div>
+        ) : (
+          <p className="py-4 text-center text-muted-foreground">No tenants in this category.</p>
+        )}
+      </AccordionContent>
+    </AccordionItem>
+  )
+}
+
+
+export function CategorizedRentReminders({ categorizedTenants }: { categorizedTenants: CategorizedTenants }) {
+  const { dueIn3Days, dueIn2Days, dueIn1Day, dueToday, overdue } = categorizedTenants;
+
+  const defaultOpen = [
+    dueToday.length > 0 ? 'Due Today' : undefined,
+    overdue.length > 0 ? 'Overdue' : undefined,
+  ].filter(Boolean) as string[];
+
+  return (
+    <Accordion type="multiple" defaultValue={defaultOpen} className="w-full space-y-4">
+      <ReminderCategory title="Due Today" tenants={dueToday} proximity="today" />
+      <ReminderCategory title="Due Tomorrow" tenants={dueIn1Day} proximity="tomorrow" />
+      <ReminderCategory title="Due in 2 Days" tenants={dueIn2Days} proximity="in 2 days" />
+      <ReminderCategory title="Due in 3 Days" tenants={dueIn3Days} proximity="in 3 days" />
+      <ReminderCategory title="Overdue" tenants={overdue} proximity="overdue" />
+    </Accordion>
   );
 }
