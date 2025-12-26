@@ -6,6 +6,9 @@ import {
   onSnapshot,
   query,
   addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
 } from 'firebase/firestore';
 import {
   MoreHorizontal,
@@ -14,9 +17,11 @@ import {
   User,
   Loader2,
   Eye,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import {
@@ -29,6 +34,17 @@ import {
   DialogTrigger,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Label } from '@/components/ui/label';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -45,7 +61,7 @@ import {
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import Link from 'next/link';
 import { getTenantsWithDetails } from '@/lib/data-helpers';
 
@@ -228,6 +244,111 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
   );
 }
 
+function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void }) {
+  const firestore = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  
+  const [formData, setFormData] = React.useState({
+    name: tenant.name,
+    phone: tenant.phone.startsWith('+260') ? tenant.phone.substring(4) : tenant.phone,
+    leaseStartDate: tenant.leaseStartDate,
+  });
+
+  React.useEffect(() => {
+    if (open) {
+      setFormData({
+        name: tenant.name,
+        phone: tenant.phone.startsWith('+260') ? tenant.phone.substring(4) : tenant.phone,
+        leaseStartDate: tenant.leaseStartDate,
+      });
+    }
+  }, [open, tenant]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!firestore || !auth) return;
+    setIsLoading(true);
+
+    const tenantRef = doc(firestore, 'tenants', tenant.id);
+    const dataToUpdate = {
+      name: formData.name,
+      phone: `+260${formData.phone}`,
+      leaseStartDate: formData.leaseStartDate,
+    };
+
+    try {
+      await updateDoc(tenantRef, dataToUpdate);
+      toast({
+        title: 'Tenant Updated',
+        description: `${formData.name}'s details have been updated.`,
+      });
+      onSave();
+      setOpen(false);
+    } catch (error) {
+      console.error("Error updating tenant:", error);
+      const permissionError = new FirestorePermissionError({
+        path: `tenants/${tenant.id}`,
+        operation: 'update',
+        requestResourceData: dataToUpdate,
+      }, auth);
+      errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+            <Edit className="mr-2 h-4 w-4" /> Edit
+        </DropdownMenuItem>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>Update the details for {tenant.name}.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">Name</Label>
+              <Input id="name" name="name" value={formData.name} onChange={handleChange} required className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone" className="text-right">Phone</Label>
+              <div className="col-span-3 flex items-center">
+                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground h-10">+260</span>
+                <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required className="rounded-l-none" />
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="leaseStartDate" className="text-right">Lease Start</Label>
+              <Input id="leaseStartDate" name="leaseStartDate" type="date" value={formData.leaseStartDate} onChange={handleChange} required className="col-span-3" />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 function StatusBadge({ status }: { status: PaymentStatus }) {
   const variant = {
     Paid: 'default',
@@ -245,6 +366,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   const [tenants, setTenants] = React.useState<TenantWithDetails[]>(initialTenants);
   const [properties, setProperties] = React.useState<Property[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
+  const { toast } = useToast();
 
   React.useEffect(() => {
     if (!firestore) return;
@@ -270,6 +392,25 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
       unsubProps();
     };
   }, [firestore]);
+
+
+  const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
+    if (!firestore) return;
+    try {
+        await deleteDoc(doc(firestore, 'tenants', tenantId));
+        toast({
+            title: 'Tenant Deleted',
+            description: `${tenantName} has been successfully removed.`,
+        });
+    } catch (error) {
+        console.error('Error deleting tenant:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Delete Failed',
+            description: 'Could not delete the tenant. You may not have the correct permissions.',
+        });
+    }
+  }
 
 
   const filteredTenants = tenants.filter(
@@ -375,12 +516,41 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
                                             <DropdownMenuItem asChild>
                                                 <Link href={`/tenants/${tenant.id}`}>
                                                     <Eye className="mr-2 h-4 w-4" />
                                                     View Details
                                                 </Link>
                                             </DropdownMenuItem>
+                                            <EditTenantForm tenant={tenant} onSave={() => {}} />
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem
+                                                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                        onSelect={(e) => e.preventDefault()}
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all associated data.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            className="bg-destructive hover:bg-destructive/90"
+                                                            onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                                                        >
+                                                            Delete
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </TableCell>
