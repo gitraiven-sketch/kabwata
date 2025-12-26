@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -33,7 +33,7 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
-      viewBox="0 0 24 24"
+      viewBox="0 0 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -81,11 +81,12 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      // In a real app, you might want to store the user's name and role in Firestore
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(userCredential.user);
+      
       toast({
         title: 'Account Created',
-        description: "You can now log in with your new account.",
+        description: "A verification email has been sent. Please check your inbox.",
       });
       router.push('/login');
     } catch (error: any) {

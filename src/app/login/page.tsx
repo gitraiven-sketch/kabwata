@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -70,12 +70,23 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({
-        title: 'Login Successful',
-        description: "Welcome back!",
-      });
-      router.push('/dashboard');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      if (!userCredential.user.emailVerified) {
+        await signOut(auth);
+        toast({
+            variant: 'destructive',
+            title: 'Email Not Verified',
+            description: 'Please check your inbox and verify your email address before logging in.',
+        });
+      } else {
+        toast({
+            title: 'Login Successful',
+            description: "Welcome back!",
+        });
+        router.push('/dashboard');
+      }
+
     } catch (error: any) {
         toast({
             variant: 'destructive',
@@ -123,7 +134,15 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+               <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input 
                 id="password" 
                 type="password" 
