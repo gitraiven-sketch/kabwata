@@ -12,11 +12,13 @@ service cloud.firestore {
     // Rules for tenants collection
     match /tenants/{tenantId} {
       allow read, create, update, delete: if isSignedIn();
-    }
 
-    // Rules for payments subcollection
-    match /tenants/{tenantId}/payments/{paymentId} {
-      allow read, create: if isSignedIn();
+      // Rules for payments subcollection
+      // A user can create a payment for a tenant, and can read all payments for the history page.
+      match /payments/{paymentId} {
+        allow create: if isSignedIn();
+        allow read: if isSignedIn();
+      }
     }
   }
 }
