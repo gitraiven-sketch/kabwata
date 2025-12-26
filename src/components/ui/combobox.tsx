@@ -24,11 +24,18 @@ type ComboboxProps = {
     options: { value: string; label: string }[];
     placeholder: string;
     className?: string;
+    value?: string;
+    onValueChange?: (value: string) => void;
 }
 
-export function Combobox({ name, options, placeholder, className }: ComboboxProps) {
+export function Combobox({ name, options, placeholder, className, value: controlledValue, onValueChange }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const [value, setValue] = React.useState("")
+  const [internalValue, setInternalValue] = React.useState("")
+  
+  const isControlled = controlledValue !== undefined;
+  const value = isControlled ? controlledValue : internalValue;
+  const setValue = isControlled ? onValueChange! : setInternalValue;
+
 
   return (
     <>

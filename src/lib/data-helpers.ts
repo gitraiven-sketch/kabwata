@@ -1,10 +1,8 @@
 'use server';
 
-import { tenants, properties, payments } from './mock-data';
 import type { Tenant, Property, Payment, TenantWithDetails, PaymentStatus } from './types';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, collectionGroup } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
-
 
 function getPaymentStatus(tenant: Tenant, allPayments: Payment[]): { status: PaymentStatus, dueDate: Date } {
     const today = new Date();
@@ -30,11 +28,26 @@ function getPaymentStatus(tenant: Tenant, allPayments: Payment[]): { status: Pay
     return { status: 'Upcoming', dueDate };
 }
 
+async function getProperties(): Promise<Property[]> {
+    try {
+        const { firestore } = initializeFirebase();
+        const propertyCollection = collection(firestore, 'properties');
+        const propertySnapshot = await getDocs(propertyCollection);
+        return propertySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+    } catch (error) {
+        console.error("Error fetching properties:", error);
+        return [];
+    }
+}
+
+
 export async function getTenantsWithDetails(): Promise<TenantWithDetails[]> {
     try {
         const { firestore } = initializeFirebase();
-        const tenantCollection = collection(firestore, 'tenants');
-        const tenantSnapshot = await getDocs(tenantCollection);
+        const tenantsCollection = collection(firestore, 'tenants');
+        const properties = await getProperties();
+        
+        const tenantSnapshot = await getDocs(tenantsCollection);
         const tenantList = tenantSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
         
         const propertyMap = new Map<string, Property>(properties.map(p => [p.id, p]));
@@ -61,34 +74,14 @@ export async function getTenantsWithDetails(): Promise<TenantWithDetails[]> {
 
     } catch (error) {
         console.error("Error fetching tenants with details:", error);
-        // Fallback to mock data on server-side error
-        const propertyMap = new Map<string, Property>(properties.map(p => [p.id, p]));
-        const paymentsByTenant = new Map<string, Payment[]>();
-
-        for (const payment of payments) {
-            if (!paymentsByTenant.has(payment.tenantId)) {
-                paymentsByTenant.set(payment.tenantId, []);
-            }
-            paymentsByTenant.get(payment.tenantId)!.push(payment);
-        }
-        
-        return tenants.map(tenant => {
-            const tenantPayments = paymentsByTenant.get(tenant.id) || [];
-            const { status, dueDate } = getPaymentStatus(tenant, tenantPayments);
-            return {
-                ...tenant,
-                property: propertyMap.get(tenant.propertyId)!,
-                paymentStatus: status,
-                dueDate,
-                payments: tenantPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-            };
-        });
+        return [];
     }
 }
 
 
 export async function getDashboardData() {
     const tenantsWithDetails = await getTenantsWithDetails();
+    const properties = await getProperties();
 
     const totalTenants = tenantsWithDetails.length;
     const totalProperties = properties.length;

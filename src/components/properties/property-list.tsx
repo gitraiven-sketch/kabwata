@@ -32,23 +32,39 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore, useAuth } from '@/firebase';
+import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query } from 'firebase/firestore';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
-function EditPropertyForm({
+function PropertyForm({
   property,
-  onPropertyUpdated,
+  onSave,
 }: {
-  property: Property;
-  onPropertyUpdated: (updatedProperty: Property) => void;
+  property?: Property;
+  onSave: () => void;
 }) {
   const { toast } = useToast();
+  const firestore = useFirestore();
+  const auth = useAuth();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [editedProperty, setEditedProperty] = React.useState(property);
+  const [formData, setFormData] = React.useState(
+    property || {
+      name: '',
+      group: 'Group A',
+      shopNumber: 0,
+      address: 'Kabwata Shopping Complex, Lusaka',
+      rentAmount: 0,
+    }
+  );
+
+  const isEditMode = !!property;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const isNumberField = name === 'rentAmount' || name === 'shopNumber';
-    setEditedProperty(prev => ({ 
+    const isNumberField = ['rentAmount', 'shopNumber'].includes(name);
+    setFormData(prev => ({ 
         ...prev, 
         [name]: isNumberField ? (value === '' ? '' : Number(value)) : value 
     }));
@@ -56,88 +72,92 @@ function EditPropertyForm({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!firestore || !auth) return;
     setIsLoading(true);
+    
+    const dataToSave = {
+        ...formData,
+        rentAmount: Number(formData.rentAmount),
+        shopNumber: Number(formData.shopNumber),
+    };
 
-    // In a real app, this would be an API call to update the database.
-    // For now, we just simulate it and update the state.
-    setTimeout(() => {
-      onPropertyUpdated({
-          ...editedProperty,
-          rentAmount: Number(editedProperty.rentAmount)
-      });
-      toast({
-        title: 'Property Updated',
-        description: `${editedProperty.name} has been successfully updated.`,
-      });
-      setIsLoading(false);
+
+    try {
+      if (isEditMode) {
+        const propRef = doc(firestore, 'properties', property.id);
+        await updateDoc(propRef, dataToSave);
+        toast({
+          title: 'Property Updated',
+          description: `${formData.name} has been successfully updated.`,
+        });
+      } else {
+        await addDoc(collection(firestore, 'properties'), dataToSave);
+        toast({
+          title: 'Property Added',
+          description: `${formData.name} has been successfully added.`,
+        });
+      }
+      onSave();
       setOpen(false);
-    }, 500);
+    } catch(error) {
+       const permissionError = new FirestorePermissionError({
+          path: isEditMode ? `properties/${property.id}` : 'properties',
+          operation: isEditMode ? 'update' : 'create',
+          requestResourceData: dataToSave,
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          Edit
-        </DropdownMenuItem>
+        {isEditMode ? (
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Edit</DropdownMenuItem>
+        ) : (
+            <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Property
+            </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Edit Property</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Property</DialogTitle>
             <DialogDescription>
-              Update the details for this property.
+              {isEditMode ? 'Update the details for this property.' : 'Enter details for the new property.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input id="name" name="name" value={editedProperty.name} onChange={handleChange} required className="col-span-3" />
+              <Label htmlFor="name" className="text-right">Name</Label>
+              <Input id="name" name="name" value={formData.name} onChange={handleChange} required className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="group" className="text-right">
-                Group
-              </Label>
-              <Input id="group" name="group" value={editedProperty.group} onChange={handleChange} required className="col-span-3" />
+              <Label htmlFor="group" className="text-right">Group</Label>
+              <Input id="group" name="group" value={formData.group} onChange={handleChange} required className="col-span-3" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="shopNumber" className="text-right">
-                Shop No.
-              </Label>
-              <Input id="shopNumber" name="shopNumber" type="number" value={editedProperty.shopNumber} onChange={handleChange} required className="col-span-3" />
+              <Label htmlFor="shopNumber" className="text-right">Shop No.</Label>
+              <Input id="shopNumber" name="shopNumber" type="number" value={formData.shopNumber} onChange={handleChange} required className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="rentAmount" className="text-right">
-                Rent (K)
-              </Label>
-              <Input
-                id="rentAmount"
-                name="rentAmount"
-                type="number"
-                value={editedProperty.rentAmount}
-                onChange={handleChange}
-                required
-                className="col-span-3"
-              />
+              <Label htmlFor="rentAmount" className="text-right">Rent (K)</Label>
+              <Input id="rentAmount" name="rentAmount" type="number" value={formData.rentAmount} onChange={handleChange} required className="col-span-3" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="address" className="text-right">
-                Address
-              </Label>
-              <Input id="address" name="address" value={editedProperty.address} onChange={handleChange} required className="col-span-3" />
+              <Label htmlFor="address" className="text-right">Address</Label>
+              <Input id="address" name="address" value={formData.address} onChange={handleChange} required className="col-span-3" />
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="secondary">
-                Cancel
-              </Button>
-            </DialogClose>
+            <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Changes
+              Save
             </Button>
           </DialogFooter>
         </form>
@@ -151,14 +171,60 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
   const [searchTerm, setSearchTerm] = React.useState('');
   const [activeTab, setActiveTab] = React.useState('all');
   const [properties, setProperties] = React.useState(initialProperties);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const propertyGroups = ['Group A', 'Group B', 'Group C'];
+  const firestore = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
 
-  const handlePropertyUpdate = (updatedProperty: Property) => {
-    setProperties(currentProperties => 
-      currentProperties.map(p => p.id === updatedProperty.id ? updatedProperty : p)
-    );
-  };
+  React.useEffect(() => {
+    if (!firestore || !auth) {
+        setIsLoading(false);
+        return;
+    };
+    
+    const q = query(collection(firestore, 'properties'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+        setProperties(props);
+        setIsLoading(false);
+    }, (error) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'properties',
+            operation: 'list',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [firestore, auth]);
+
+  const handleDelete = async (property: Property) => {
+    if(!firestore || !auth) return;
+     if (window.confirm(`Are you sure you want to delete ${property.name}?`)) {
+        try {
+            await deleteDoc(doc(firestore, 'properties', property.id));
+            toast({
+                title: "Property Deleted",
+                description: `${property.name} has been removed.`,
+            });
+        } catch (error) {
+            const permissionError = new FirestorePermissionError({
+                path: `properties/${property.id}`,
+                operation: 'delete',
+            }, auth);
+            errorEmitter.emit('permission-error', permissionError);
+        }
+     }
+  }
+
+
+  const propertyGroups = React.useMemo(() => {
+    const groups = new Set(properties.map(p => p.group));
+    return ['all', ...Array.from(groups).sort()];
+  }, [properties]);
+
 
   const filteredProperties = properties.filter(
     (property) => {
@@ -181,21 +247,19 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Property
-        </Button>
+        <PropertyForm onSave={() => { /* No-op, handled by snapshot */ }} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="all">All Shops</TabsTrigger>
           {propertyGroups.map(group => (
-            <TabsTrigger key={group} value={group}>{group}</TabsTrigger>
+            <TabsTrigger key={group} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
           ))}
         </TabsList>
         <TabsContent value={activeTab} className="mt-4">
-           {filteredProperties.length > 0 ? (
+           {isLoading ? (
+                <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+           ) : filteredProperties.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredProperties.map((property) => (
                 <Card key={property.id} className="overflow-hidden flex flex-col">
@@ -211,9 +275,11 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                             <EditPropertyForm property={property} onPropertyUpdated={handlePropertyUpdate} />
-                            <DropdownMenuItem>Add Photo</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                             <PropertyForm property={property} onSave={() => {}} />
+                            <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                onClick={() => handleDelete(property)}
+                            >
                               Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -238,7 +304,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 py-24 text-center">
                 <h3 className="mt-4 text-lg font-semibold">No Properties Found</h3>
-                <p className="mb-4 mt-2 text-sm text-muted-foreground">Try adjusting your search or filter.</p>
+                <p className="mb-4 mt-2 text-sm text-muted-foreground">Try adjusting your search or filter, or add a new property.</p>
             </div>
           )}
         </TabsContent>

@@ -9,9 +9,8 @@ import {
   onSnapshot,
   query,
   getDocs,
-  where,
   writeBatch,
-  serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 import {
   Table,
@@ -38,7 +37,6 @@ import {
   Search,
   User,
   Loader2,
-  DollarSign,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property, Payment } from '@/lib/types';
 import { format } from 'date-fns';
@@ -56,15 +54,7 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
-import { properties as mockProperties } from '@/lib/mock-data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -181,19 +171,134 @@ function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPayme
   );
 }
 
+function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenant, onTenantUpdated: () => void, properties: Property[] }) {
+  const firestore = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [editedTenant, setEditedTenant] = React.useState(tenant);
 
-function AddTenantForm({
-  onTenantAdded,
-}: {
-  onTenantAdded: () => void;
-}) {
+  const propertyOptions = properties.map(p => ({ value: p.id, label: `${p.group} - Shop ${p.shopNumber} (${p.name})`}));
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditedTenant(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleValueChange = (name: string, value: string | number) => {
+    setEditedTenant(prev => ({ ...prev, [name]: value }));
+  }
+
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!firestore || !auth) return;
+
+    setIsLoading(true);
+    const tenantRef = doc(firestore, 'tenants', tenant.id);
+    
+    const { id, ...updateData } = editedTenant;
+
+    updateDoc(tenantRef, {
+      ...updateData,
+      rentAmount: Number(updateData.rentAmount),
+      paymentDay: Number(updateData.paymentDay),
+    })
+      .then(() => {
+        toast({
+          title: 'Tenant Updated',
+          description: `${editedTenant.name} has been successfully updated.`,
+        });
+        onTenantUpdated();
+        setOpen(false);
+      })
+      .catch((error) => {
+        const permissionError = new FirestorePermissionError({
+          path: tenantRef.path,
+          operation: 'update',
+          requestResourceData: updateData,
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          Edit
+        </DropdownMenuItem>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Edit Tenant</DialogTitle>
+            <DialogDescription>
+              Update the details for this tenant.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">Name</Label>
+              <Input id="name" name="name" value={editedTenant.name} onChange={handleChange} required className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">Email</Label>
+              <Input id="email" name="email" type="email" value={editedTenant.email} onChange={handleChange} required className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone" className="text-right">Phone</Label>
+              <Input id="phone" name="phone" value={editedTenant.phone} onChange={handleChange} required className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="propertyId" className="text-right">Property</Label>
+               <Combobox
+                name="propertyId"
+                options={propertyOptions}
+                placeholder="Select property..."
+                className="col-span-3"
+                value={editedTenant.propertyId}
+                onValueChange={(value) => handleValueChange('propertyId', value)}
+              />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="rentAmount" className="text-right">Rent (K)</Label>
+              <Input id="rentAmount" name="rentAmount" type="number" value={editedTenant.rentAmount} onChange={handleChange} required className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="paymentDay" className="text-right">Payment Day</Label>
+              <Input id="paymentDay" name="paymentDay" type="number" min="1" max="31" value={editedTenant.paymentDay} onChange={handleChange} required className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="leaseStartDate" className="text-right">Lease Start</Label>
+              <Input id="leaseStartDate" name="leaseStartDate" type="date" value={editedTenant.leaseStartDate} onChange={handleChange} required className="col-span-3" />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => void; properties: Property[] }) {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
 
-  const properties: Property[] = mockProperties;
   const propertyOptions = properties.map(p => ({ value: p.id, label: `${p.group} - Shop ${p.shopNumber} (${p.name})`}));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -345,18 +450,28 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   const firestore = useFirestore();
   const auth = useAuth();
   const [tenants, setTenants] = React.useState<TenantWithDetails[]>(initialTenants);
+  const [properties, setProperties] = React.useState<Property[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
 
-  const fetchTenants = React.useCallback(async () => {
+  const fetchTenantsAndProperties = React.useCallback(async () => {
     if (!firestore || !auth) return;
     setIsLoading(true);
 
+    const propertiesQuery = query(collection(firestore, "properties"));
     const tenantsQuery = query(collection(firestore, "tenants"));
     
-    // In a real app, properties would also be collections in Firestore
-    const propertyMap = new Map<string, Property>(mockProperties.map(p => [p.id, p]));
+    const unsubProperties = onSnapshot(propertiesQuery, (snapshot) => {
+        const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+        setProperties(props);
+    });
     
-    const unsubscribe = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
+    const unsubTenants = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
+        const propertyMap = new Map<string, Property>();
+        const propsSnapshot = await getDocs(propertiesQuery);
+        propsSnapshot.forEach(doc => {
+            propertyMap.set(doc.id, { id: doc.id, ...doc.data() } as Property);
+        });
+
         const tenantsDataPromises = tenantsSnapshot.docs.map(async (tenantDoc) => {
             const tenantData = { id: tenantDoc.id, ...tenantDoc.data() } as Tenant;
             
@@ -394,26 +509,29 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         setTenants(tenantsData);
         setIsLoading(false);
     },
-    async (serverError) => {
+    (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: (tenantsQuery as any).path,
+            path: tenantsQuery.path,
             operation: 'list',
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
         setIsLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+        unsubTenants();
+        unsubProperties();
+    };
 
   }, [firestore, auth]);
 
 
   React.useEffect(() => {
-    const unsubscribePromise = fetchTenants();
+    const unsubscribePromise = fetchTenantsAndProperties();
     return () => {
         unsubscribePromise.then(unsub => unsub && unsub());
     }
-  }, [fetchTenants]);
+  }, [fetchTenantsAndProperties]);
 
   const filteredTenants = tenants.filter(
     (tenant) =>
@@ -455,7 +573,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     if (!firestore || !auth) return;
     const tenantDocRef = doc(firestore, 'tenants', tenantId);
     
-    // First, delete all payments in the subcollection
     const paymentsRef = collection(firestore, 'tenants', tenantId, 'payments');
     const paymentsSnapshot = await getDocs(paymentsRef);
     const batch = writeBatch(firestore);
@@ -464,8 +581,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     });
     
     try {
-      await batch.commit(); // Delete payments
-      await deleteDoc(tenantDocRef); // Then delete tenant
+      await batch.commit();
+      await deleteDoc(tenantDocRef);
       toast({
           title: "Tenant Deleted",
           description: "The tenant and all their payment records have been removed.",
@@ -491,7 +608,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <AddTenantForm onTenantAdded={() => { /* data re-fetches automatically */ }} />
+        <AddTenantForm properties={properties} onTenantAdded={() => { /* data re-fetches automatically */ }} />
       </div>
 
       <div className="rounded-lg border">
@@ -550,7 +667,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <RecordPaymentForm tenant={tenant} onPaymentAdded={() => { /* re-fetch handled by snapshot */ }} />
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <EditTenantForm tenant={tenant} properties={properties} onTenantUpdated={() => { /* re-fetch handled by snapshot */ }}/>
                         <DropdownMenuItem onSelect={() => handleSendReminder(tenant)}>Send Reminder</DropdownMenuItem>
                         <DropdownMenuItem 
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"

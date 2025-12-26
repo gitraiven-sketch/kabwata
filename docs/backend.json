@@ -75,7 +75,8 @@
             "rentAmount": {
                 "type": "number"
             }
-        }
+        },
+        "required": ["name", "group", "shopNumber", "address", "rentAmount"]
     },
     "Payment": {
         "title": "Payment",
@@ -115,6 +116,12 @@
             "$ref": "#/entities/Payment"
         },
         "description": "Sub-collection of payments for a specific tenant."
+    },
+    "/properties/{propertyId}": {
+        "schema": {
+            "$ref": "#/entities/Property"
+        },
+        "description": "Collection of all properties."
     }
   }
 }
