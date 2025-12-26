@@ -62,6 +62,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { properties as mockProperties } from '@/lib/mock-data';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 const statusStyles: Record<PaymentStatus, string> = {
   Paid: 'bg-green-100 text-green-800 border-green-200',
@@ -90,29 +93,31 @@ function AddTenantForm({
     const formData = new FormData(event.currentTarget);
     const newTenantData = Object.fromEntries(formData.entries()) as Omit<Tenant, 'id'>;
 
-    try {
-      const tenantRef = collection(firestore, 'tenants');
-      await addDoc(tenantRef, {
+    const tenantsRef = collection(firestore, 'tenants');
+    addDoc(tenantsRef, {
         ...newTenantData,
         rentAmount: Number(newTenantData.rentAmount),
         paymentDay: Number(newTenantData.paymentDay),
+      })
+      .then(() => {
+        toast({
+          title: 'Tenant Added',
+          description: `${newTenantData.name} has been successfully added.`,
+        });
+        onTenantAdded();
+        setOpen(false);
+      })
+      .catch((error: any) => {
+        const permissionError = new FirestorePermissionError({
+          path: tenantsRef.path,
+          operation: 'create',
+          requestResourceData: newTenantData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsLoading(false);
       });
-
-      toast({
-        title: 'Tenant Added',
-        description: `${newTenantData.name} has been successfully added.`,
-      });
-      onTenantAdded();
-      setOpen(false);
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to add tenant. ' + error.message,
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
@@ -279,6 +284,14 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         });
         setTenants(tenantsData);
         setIsLoading(false);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: tenantsQuery.path,
+            operation: 'list',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setIsLoading(false);
     });
 
     return unsubscribe;
@@ -331,20 +344,21 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
   const handleDeleteTenant = async (tenantId: string) => {
     if (!firestore) return;
-    try {
-      // Also delete related payments in a real app
-      await deleteDoc(doc(firestore, "tenants", tenantId));
-      toast({
-        title: "Tenant Deleted",
-        description: "The tenant has been removed from the system.",
-      });
-    } catch (error: any) {
-       toast({
-        variant: "destructive",
-        title: "Error Deleting Tenant",
-        description: error.message,
-      });
-    }
+    const tenantDocRef = doc(firestore, 'tenants', tenantId);
+    deleteDoc(tenantDocRef)
+        .then(() => {
+            toast({
+                title: "Tenant Deleted",
+                description: "The tenant has been removed from the system.",
+            });
+        })
+        .catch((error) => {
+            const permissionError = new FirestorePermissionError({
+                path: tenantDocRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
   }
 
   return (
