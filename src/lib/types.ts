@@ -23,6 +23,7 @@ export type Payment = {
   tenantId: string;
   amount: number;
   date: string; // ISO date string
+  receiptUrl?: string;
 };
 
 export type PaymentStatus = 'Paid' | 'Overdue' | 'Upcoming';

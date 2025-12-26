@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -37,11 +38,13 @@ import {
   Search,
   User,
   Loader2,
+  Mail,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property, Payment } from '@/lib/types';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { generateRentReminder } from '@/ai/flows/automated-rent-reminders';
+import { generateReceiptEmail } from '@/ai/flows/payment-receipt-email';
 import { useAuth, useFirestore } from '@/firebase';
 import {
   Dialog,
@@ -65,7 +68,7 @@ const statusStyles: Record<PaymentStatus, string> = {
   Upcoming: 'bg-blue-100 text-blue-800 border-blue-200',
 };
 
-function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPaymentAdded: () => void }) {
+function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPaymentAdded: (paymentId: string) => void }) {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -73,6 +76,7 @@ function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPayme
   const [open, setOpen] = React.useState(false);
   const [amount, setAmount] = React.useState(tenant.rentAmount);
   const [date, setDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [receiptUrl, setReceiptUrl] = React.useState('');
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -80,20 +84,23 @@ function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPayme
 
     setIsLoading(true);
     
-    const newPayment = {
+    const newPayment: Omit<Payment, 'id'> = {
       tenantId: tenant.id,
       amount: Number(amount),
       date: new Date(date).toISOString(),
     };
+    if (receiptUrl) {
+        newPayment.receiptUrl = receiptUrl;
+    }
 
     const paymentsRef = collection(firestore, 'tenants', tenant.id, 'payments');
     addDoc(paymentsRef, newPayment)
-      .then(() => {
+      .then((docRef) => {
         toast({
           title: 'Payment Recorded',
           description: `Payment of K${amount} for ${tenant.name} has been recorded.`,
         });
-        onPaymentAdded();
+        onPaymentAdded(docRef.id);
         setOpen(false);
       })
       .catch((error) => {
@@ -150,6 +157,20 @@ function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPayme
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 required
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="receiptUrl" className="text-right">
+                Receipt URL
+              </Label>
+              <Input
+                id="receiptUrl"
+                name="receiptUrl"
+                type="text"
+                placeholder="https://example.com/receipt.pdf"
+                value={receiptUrl}
+                onChange={(e) => setReceiptUrl(e.target.value)}
                 className="col-span-3"
               />
             </div>
@@ -568,6 +589,43 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         });
     }
   }
+  
+  const handleSendReceipt = async (tenant: TenantWithDetails, paymentId: string) => {
+    const payment = tenant.payments.find(p => p.id === paymentId);
+    if (!payment) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Payment not found.' });
+        return;
+    }
+    
+    toast({ title: 'Generating Receipt Email...', description: `Preparing email for ${tenant.name}.` });
+    
+    try {
+        const result = await generateReceiptEmail({
+            tenantName: tenant.name,
+            propertyName: tenant.property.name,
+            paymentAmount: payment.amount,
+            paymentDate: format(new Date(payment.date), 'do MMMM, yyyy'),
+            receiptUrl: payment.receiptUrl,
+        });
+
+        const mailtoLink = `mailto:${tenant.email}?subject=${encodeURIComponent(result.subject)}&body=${encodeURIComponent(result.body)}`;
+
+        toast({
+            title: 'Email Ready!',
+            description: 'Click the button to open in your email client.',
+            action: <Button onClick={() => window.open(mailtoLink)}>Open Email</Button>
+        });
+
+    } catch (error) {
+        console.error('Failed to generate receipt email:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Could not generate the receipt email.',
+        });
+    }
+  }
+
 
   const handleDeleteTenant = async (tenantId: string) => {
     if (!firestore || !auth) return;
@@ -666,9 +724,13 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <RecordPaymentForm tenant={tenant} onPaymentAdded={() => { /* re-fetch handled by snapshot */ }} />
+                        <RecordPaymentForm tenant={tenant} onPaymentAdded={(paymentId) => handleSendReceipt(tenant, paymentId)} />
                         <EditTenantForm tenant={tenant} properties={properties} onTenantUpdated={() => { /* re-fetch handled by snapshot */ }}/>
-                        <DropdownMenuItem onSelect={() => handleSendReminder(tenant)}>Send Reminder</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => handleSendReminder(tenant)} disabled={tenant.paymentStatus !== 'Overdue'}>
+                          <Mail className="mr-2 h-4 w-4" />
+                          Send Overdue Reminder
+                        </DropdownMenuItem>
                         <DropdownMenuItem 
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
                           onSelect={() => handleDeleteTenant(tenant.id)}

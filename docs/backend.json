@@ -95,6 +95,11 @@
             "date": {
                 "type": "string",
                 "format": "date-time"
+            },
+            "receiptUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "A URL pointing to the uploaded receipt image."
             }
         }
     }
