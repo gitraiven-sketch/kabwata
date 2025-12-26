@@ -41,10 +41,44 @@ import { User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 function getDueDate(tenant: Tenant): Date {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
+
     const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(tenant.leaseStartDate);
-    let dueDate = new Date(lastPaid.getFullYear(), lastPaid.getMonth(), tenant.paymentDay);
-    dueDate.setMonth(dueDate.getMonth() + 1);
-    return dueDate;
+    
+    const leaseStart = new Date(tenant.leaseStartDate);
+
+    // Determine the most recent payment cycle start date before or on today
+    let currentCycleStart = new Date(today.getFullYear(), today.getMonth(), tenant.paymentDay);
+    if (today.getDate() < tenant.paymentDay) {
+        // We are in the previous month's payment cycle
+        currentCycleStart.setMonth(currentCycleStart.getMonth() - 1);
+    }
+    
+    // Ensure the cycle start is not before the lease start
+    if (currentCycleStart < leaseStart) {
+        currentCycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), tenant.paymentDay);
+        if(leaseStart.getDate() > tenant.paymentDay) {
+            currentCycleStart.setMonth(currentCycleStart.getMonth() + 1)
+        }
+    }
+    
+    const nextDueDate = new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay);
+    if(today >= nextDueDate) {
+         nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+    }
+
+
+    if (lastPaid >= currentCycleStart) {
+        return nextDueDate;
+    }
+
+    if (today >= new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay)) {
+         const overdueDueDate = new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay);
+         return overdueDueDate;
+    }
+    
+    return nextDueDate;
 }
 
 function PropertyForm({
@@ -89,10 +123,9 @@ function PropertyForm({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const isNumberField = ['shopNumber', 'paymentDay'].includes(name);
     setFormData(prev => ({ 
         ...prev, 
-        [name]: isNumberField ? Number(value) : value 
+        [name]: (name === 'shopNumber' || name === 'paymentDay') ? (value === '' ? 0 : parseInt(value, 10)) : value
     }));
   };
 
@@ -295,7 +328,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
       const matchesTab = activeTab === 'all' || property.group === activeTab;
       return matchesSearch && matchesTab;
     }
-  );
+  ).sort((a, b) => a.shopNumber - b.shopNumber);
 
   return (
     <div className="space-y-4">

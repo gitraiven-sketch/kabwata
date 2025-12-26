@@ -47,6 +47,7 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import Link from 'next/link';
+import { getTenantsWithDetails } from '@/lib/data-helpers';
 
 
 function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: TenantWithDetails[] }) {
@@ -246,98 +247,29 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   const [isLoading, setIsLoading] = React.useState(true);
 
   React.useEffect(() => {
-    if (!firestore || !auth) {
+    if (!firestore) return;
+
+    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), async () => {
+      try {
+        const tenantDetails = await getTenantsWithDetails();
+        setTenants(tenantDetails);
+      } catch (error) {
+        console.error("Failed to fetch tenant details:", error);
+      } finally {
         setIsLoading(false);
-        return;
-    };
-    
-    const propsQuery = query(collection(firestore, 'properties'));
-    const unsubProps = onSnapshot(propsQuery, (snapshot) => {
+      }
+    });
+
+    const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
         const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
         setProperties(props);
-        if (snapshot.empty) {
-            setIsLoading(false);
-        }
-    }, (error) => {
-        console.error("Error fetching properties:", error);
-        const permissionError = new FirestorePermissionError({
-            path: 'properties',
-            operation: 'list',
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
-        setIsLoading(false);
     });
 
-    return () => unsubProps();
-  }, [firestore, auth]);
-
-  React.useEffect(() => {
-    if (!firestore || !auth) {
-      setIsLoading(false);
-      return;
-    }
-
-    if (properties.length === 0 && !isLoading) {
-        setTenants([]);
-        setIsLoading(false);
-        return;
-    }
-    
-    if (properties.length === 0) return;
-
-    const tenantsQuery = query(collection(firestore, 'tenants'));
-    const unsubTenants = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
-        const propertyMap = new Map<string, Property>();
-        properties.forEach(p => propertyMap.set(p.id, p));
-
-        const tenantsDataPromises = tenantsSnapshot.docs.map(async (tenantDoc) => {
-            const tenantData = { id: tenantDoc.id, ...tenantDoc.data() } as Tenant;
-            
-            const today = new Date();
-            const lastPaid = tenantData.lastPaidDate ? new Date(tenantData.lastPaidDate) : new Date(tenantData.leaseStartDate);
-            
-            let dueDate = new Date(lastPaid.getFullYear(), lastPaid.getMonth(), tenantData.paymentDay);
-            dueDate.setMonth(dueDate.getMonth() + 1);
-
-            let paymentStatus: PaymentStatus = 'Upcoming';
-            if (today > dueDate) {
-              paymentStatus = 'Overdue';
-            } else if (lastPaid.getFullYear() === today.getFullYear() && lastPaid.getMonth() === today.getMonth()) {
-              paymentStatus = 'Paid';
-            }
-            
-            const property = propertyMap.get(tenantData.propertyId);
-            
-            if (!property) { 
-                console.warn(`Could not find property with ID: ${tenantData.propertyId} for tenant ${tenantData.name}`);
-                return null;
-            }
-
-            return {
-                ...tenantData,
-                property: property!,
-                paymentStatus: paymentStatus,
-                dueDate: dueDate,
-            };
-        });
-
-        const tenantsData = (await Promise.all(tenantsDataPromises))
-            .filter(Boolean) as TenantWithDetails[];
-
-        setTenants(tenantsData);
-        setIsLoading(false);
-    },
-    (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: tenantsQuery.path,
-            operation: 'list',
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
-        setIsLoading(false);
-    });
-
-    return () => unsubTenants();
-  }, [firestore, auth, properties, isLoading]);
+    return () => {
+      unsubTenants();
+      unsubProps();
+    };
+  }, [firestore]);
 
 
   const filteredTenants = tenants.filter(
@@ -347,7 +279,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   );
   
   const groupedTenants = React.useMemo(() => {
-    return filteredTenants.reduce((acc, tenant) => {
+    const sortedTenants = [...filteredTenants].sort((a,b) => a.property.shopNumber - b.property.shopNumber);
+    return sortedTenants.reduce((acc, tenant) => {
         const group = tenant.property.group || 'Uncategorized';
         if (!acc[group]) {
             acc[group] = [];
@@ -359,6 +292,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
   const groupOrder = ['Group A', 'Group B', 'Group C', 'Uncategorized'];
   
+  const defaultTab = groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -378,8 +313,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             <div className="flex h-64 w-full items-center justify-center rounded-lg border">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
-        ) : filteredTenants.length > 0 ? (
-            <Tabs defaultValue="Group A" className="w-full">
+        ) : tenants.length > 0 ? (
+            <Tabs defaultValue={defaultTab} className="w-full">
               <TabsList>
                 {groupOrder.map(groupName => {
                   if(groupedTenants[groupName] && groupedTenants[groupName].length > 0) {
