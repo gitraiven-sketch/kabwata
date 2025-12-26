@@ -1,5 +1,4 @@
 import type { Tenant, Property, Payment } from './types';
-import { PlaceHolderImages } from './placeholder-images';
 
 const generateProperties = (): Property[] => {
   const groups = [
@@ -9,21 +8,18 @@ const generateProperties = (): Property[] => {
   ];
 
   const allProperties: Property[] = [];
-  let imageIndex = 0;
-
+  
   groups.forEach(group => {
     for (let i = 1; i <= group.count; i++) {
       const propertyName = `${group.name} - Shop ${i}`;
-      const placeholder = PlaceHolderImages[imageIndex % PlaceHolderImages.length];
       allProperties.push({
         id: `prop_${group.name.toLowerCase().replace(' ', '')}_${i}`,
         name: propertyName,
+        group: group.name,
+        shopNumber: i,
         address: 'Kabwata Shopping Complex, Lusaka',
         rentAmount: 2000 + Math.floor(Math.random() * 30) * 100, // Rent from K2000 to K4900
-        image: placeholder.imageUrl,
-        imageHint: placeholder.imageHint,
       });
-      imageIndex++;
     }
   });
 

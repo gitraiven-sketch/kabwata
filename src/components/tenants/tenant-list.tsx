@@ -19,8 +19,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MoreHorizontal, PlusCircle, Search } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { MoreHorizontal, PlusCircle, Search, User } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus } from '@/lib/types';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -112,8 +112,7 @@ export function TenantList({ tenants }: { tenants: TenantWithDetails[] }) {
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
                       <Avatar>
-                        <AvatarImage src={`https://i.pravatar.cc/150?u=${tenant.id}`} />
-                        <AvatarFallback>{tenant.name.charAt(0)}</AvatarFallback>
+                        <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                       </Avatar>
                       <div>
                         <div>{tenant.name}</div>

@@ -1,4 +1,4 @@
-import { getDashboardData, getTenantsWithDetails } from '@/lib/data-helpers';
+import { getDashboardData } from '@/lib/data-helpers';
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
 import {
   Card,
@@ -15,9 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format, formatDistanceToNow } from 'date-fns';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { formatDistanceToNow } from 'date-fns';
+import { User } from 'lucide-react';
 
 export default async function DashboardPage() {
   const dashboardData = await getDashboardData();
@@ -58,8 +58,7 @@ export default async function DashboardPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
-                              <AvatarImage src={`https://i.pravatar.cc/150?u=${tenant.id}`} alt={tenant.name} />
-                              <AvatarFallback>{tenant.name.charAt(0)}</AvatarFallback>
+                              <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                           </Avatar>
                           <div>
                             <div className="font-medium">{tenant.name}</div>
@@ -111,8 +110,7 @@ export default async function DashboardPage() {
                       <TableCell>
                          <div className="flex items-center gap-3">
                             <Avatar className="h-9 w-9">
-                                <AvatarImage src={`https://i.pravatar.cc/150?u=${tenant.id}`} alt={tenant.name} />
-                                <AvatarFallback>{tenant.name.charAt(0)}</AvatarFallback>
+                                <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                             </Avatar>
                             <div>
                                 <div className="font-medium">{tenant.name}</div>

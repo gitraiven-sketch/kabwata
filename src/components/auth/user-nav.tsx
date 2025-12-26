@@ -11,10 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import Link from 'next/link';
 
 export function UserNav() {
   const router = useRouter();
@@ -33,7 +34,9 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.photoURL ?? `https://i.pravatar.cc/150?u=${user?.uid}`} alt={user?.displayName ?? 'User'} />
+            {user?.photoURL ? (
+              <AvatarImage src={user.photoURL} alt={user.displayName ?? 'User'} />
+            ) : null}
             <AvatarFallback>
               {user?.displayName ? user.displayName.charAt(0) : <User />}
             </AvatarFallback>
@@ -51,7 +54,12 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          {/* Add other menu items here if needed */}
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href="/profile">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+            </Link>
+          </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">

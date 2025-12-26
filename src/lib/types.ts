@@ -13,10 +13,10 @@ export type Tenant = {
 export type Property = {
   id: string;
   name: string;
+  group: string;
+  shopNumber: number;
   address: string;
   rentAmount: number;
-  image: string;
-  imageHint: string;
 };
 
 export type Payment = {
