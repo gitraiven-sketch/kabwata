@@ -13,6 +13,7 @@ import {
   Search,
   User,
   Loader2,
+  Eye,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
 import { format } from 'date-fns';
@@ -44,6 +45,8 @@ import {
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import Link from 'next/link';
 
 
 function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: TenantWithDetails[] }) {
@@ -115,7 +118,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: 0, // Default rent amount
+        rentAmount: 0,
         paymentDay: property.paymentDay || 1,
         leaseStartDate: formData.get('leaseStartDate') as string,
         lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(),
@@ -421,9 +424,22 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     <StatusBadge status={tenant.paymentStatus} />
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <MoreHorizontal className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                            <DropdownMenuItem asChild>
+                                                <Link href={`/tenants/${tenant.id}`}>
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    View Details
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </TableCell>
                                 </TableRow>
                             ))}
