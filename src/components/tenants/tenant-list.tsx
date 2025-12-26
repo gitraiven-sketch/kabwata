@@ -38,7 +38,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { Input } from '@/components/ui/input';
 import { Button } from '../ui/button';
 import { TenantCalendar } from './tenant-calendar';
-import { Combobox } from '../ui/combobox';
 
 function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: TenantWithDetails[] }) {
   const firestore = useFirestore();
@@ -46,40 +45,60 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [selectedPropertyId, setSelectedPropertyId] = React.useState('');
+  const [propertyCode, setPropertyCode] = React.useState('');
   
   const occupiedPropertyIds = new Set(tenants.map(t => t.propertyId));
-  const vacantProperties = properties.filter(p => !occupiedPropertyIds.has(p.id));
-
-  const propertyOptions = vacantProperties.map(p => ({
-      value: p.id,
-      label: p.name,
-  }));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!firestore || !auth) return;
 
-    if (!selectedPropertyId) {
+    if (!propertyCode) {
         toast({
             variant: 'destructive',
-            title: 'Property Not Selected',
-            description: 'Please select a property for the new tenant.',
+            title: 'Property Not Specified',
+            description: 'Please enter a property code (e.g., A1, B12).',
         });
         return;
     }
 
     setIsLoading(true);
 
-    const property = properties.find(p => p.id === selectedPropertyId);
+    const parsed = propertyCode.match(/^([A-C])(\d+)$/i);
+    if (!parsed) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Property Code',
+            description: 'Code must be a letter (A, B, C) followed by a number (e.g., C1).',
+        });
+        setIsLoading(false);
+        return;
+    }
+    
+    const [, groupChar, shopNum] = parsed;
+    const groupName = `Group ${groupChar.toUpperCase()}`;
+    const shopNumber = parseInt(shopNum, 10);
+
+    const property = properties.find(p => p.group === groupName && p.shopNumber === shopNumber);
+
     if (!property) {
       toast({
         variant: 'destructive',
         title: 'Property Not Found',
-        description: `Selected property could not be found.`,
+        description: `Property "${propertyCode.toUpperCase()}" could not be found.`,
       });
       setIsLoading(false);
       return;
+    }
+
+    if (occupiedPropertyIds.has(property.id)) {
+        toast({
+            variant: 'destructive',
+            title: 'Property Occupied',
+            description: `Property "${property.name}" is already assigned to a tenant.`,
+        });
+        setIsLoading(false);
+        return;
     }
 
     const formData = new FormData(event.currentTarget);
@@ -89,10 +108,10 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: 0, // This is now set to 0 as requested
-        paymentDay: property.paymentDay, // Set payment day from property
+        rentAmount: 0,
+        paymentDay: property.paymentDay,
         leaseStartDate: formData.get('leaseStartDate') as string,
-        lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(), // Assume paid on lease start
+        lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(),
     };
 
     const tenantsRef = collection(firestore, 'tenants');
@@ -105,7 +124,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         onTenantAdded();
         setOpen(false);
         (event.target as HTMLFormElement).reset();
-        setSelectedPropertyId('');
+        setPropertyCode('');
       })
       .catch((error: any) => {
         const permissionError = new FirestorePermissionError({
@@ -158,15 +177,15 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
               <Label htmlFor="propertyId" className="text-right">
                 Property
               </Label>
-              <div className="col-span-3">
-                <Combobox 
-                    name="propertyId"
-                    options={propertyOptions}
-                    placeholder="Select a vacant property..."
-                    value={selectedPropertyId}
-                    onValueChange={setSelectedPropertyId}
-                />
-              </div>
+              <Input 
+                id="propertyCode"
+                name="propertyCode"
+                placeholder="e.g. A1, C15"
+                value={propertyCode}
+                onChange={(e) => setPropertyCode(e.target.value)}
+                required 
+                className="col-span-3" 
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="leaseStartDate" className="text-right">
