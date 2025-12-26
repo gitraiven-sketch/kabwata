@@ -14,8 +14,7 @@ import { Loader2, Search } from 'lucide-react';
 import type { Tenant, Property, Payment } from '@/lib/types';
 import { format } from 'date-fns';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, collectionGroup, onSnapshot, query } from 'firebase/firestore';
-import { properties as mockProperties } from '@/lib/mock-data';
+import { collection, collectionGroup, onSnapshot, query, getDocs } from 'firebase/firestore';
 
 type FullPaymentRecord = {
   paymentId: string;
@@ -40,8 +39,9 @@ export function PaymentHistory() {
 
     const paymentsQuery = query(collectionGroup(firestore, 'payments'));
     const tenantsQuery = query(collection(firestore, 'tenants'));
+    const propertiesQuery = query(collection(firestore, 'properties'));
 
-    const propertyMap = new Map<string, Property>(mockProperties.map(p => [p.id, p]));
+    let propertyMap = new Map<string, Property>();
     let tenantMap = new Map<string, Tenant>();
 
     const unsubTenants = onSnapshot(tenantsQuery, (snapshot) => {
@@ -50,6 +50,14 @@ export function PaymentHistory() {
         newTenantMap.set(doc.id, { id: doc.id, ...doc.data() } as Tenant);
       });
       tenantMap = newTenantMap;
+    });
+
+    const unsubProperties = onSnapshot(propertiesQuery, (snapshot) => {
+        const newPropertyMap = new Map<string, Property>();
+        snapshot.forEach(doc => {
+            newPropertyMap.set(doc.id, { id: doc.id, ...doc.data() } as Property);
+        });
+        propertyMap = newPropertyMap;
     });
 
     const unsubPayments = onSnapshot(paymentsQuery, (snapshot) => {
@@ -79,6 +87,7 @@ export function PaymentHistory() {
     return () => {
       unsubTenants();
       unsubPayments();
+      unsubProperties();
     };
   }, [firestore]);
 
