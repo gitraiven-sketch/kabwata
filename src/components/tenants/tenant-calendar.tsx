@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { TenantWithDetails } from '@/lib/types';
-import { DayContent, DayPicker, DayProps } from 'react-day-picker';
+import { DayContentProps, DayPicker } from 'react-day-picker';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
 
@@ -48,18 +48,18 @@ export function TenantCalendar({ tenants }: TenantCalendarProps) {
     },
   };
 
-  function CustomDayContent(props: DayProps) {
+  function CustomDayContent(props: DayContentProps) {
     const dayNumber = props.date.getDate();
     const tenantsForDay = tenantsByDay.get(dayNumber);
     const isDueDay = tenantsForDay && tenantsForDay.length > 0;
 
-    if (isDueDay) {
+    if (isDueDay && props.displayMonth === month) {
       return (
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
                 <div className="relative w-full h-full flex items-center justify-center">
-                    <DayContent {...props} />
+                    <DayPicker.Day {...props} />
                     <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs">
                         {tenantsForDay.length}
                     </Badge>
@@ -80,7 +80,7 @@ export function TenantCalendar({ tenants }: TenantCalendarProps) {
       );
     }
     
-    return <DayContent {...props} />;
+    return <DayPicker.Day {...props} />;
   }
 
 
@@ -92,7 +92,7 @@ export function TenantCalendar({ tenants }: TenantCalendarProps) {
         modifiers={modifiers}
         modifiersStyles={modifiersStyles}
         components={{
-            DayContent: CustomDayContent
+            Day: CustomDayContent
         }}
         className="p-0"
         classNames={{
