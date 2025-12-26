@@ -20,8 +20,9 @@ import { Textarea } from '@/components/ui/textarea';
 import type { TenantWithDetails } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { generateRentReminder } from '@/ai/flows/automated-rent-reminders';
-import { format } from 'date-fns';
-import { Loader2, Wand2, User, Building } from 'lucide-react';
+import { generateAdminOverdueNotice } from '@/ai/flows/admin-overdue-notice';
+import { format, formatDistanceToNowStrict } from 'date-fns';
+import { Loader2, Wand2, User, Building, AlertTriangle, Mail } from 'lucide-react';
 
 type CategorizedTenants = {
   dueIn3Days: TenantWithDetails[];
@@ -107,6 +108,95 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
   )
 }
 
+function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDetails[] }) {
+  const [emailContent, setEmailContent] = React.useState<{ subject: string; body: string } | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const { toast } = useToast();
+
+  if (overdueTenants.length === 0) {
+    return null;
+  }
+
+  const handleGenerateEmail = async () => {
+    setIsLoading(true);
+    setEmailContent(null);
+    try {
+      const overdueDetails = overdueTenants.map(t => ({
+        tenantName: t.name,
+        propertyName: t.property.name,
+        rentAmount: t.rentAmount,
+        daysOverdue: formatDistanceToNowStrict(t.dueDate, { unit: 'day' })
+      }));
+
+      const result = await generateAdminOverdueNotice({
+        overdueTenants: overdueDetails,
+        totalOverdue: overdueTenants.length,
+      });
+      
+      setEmailContent(result);
+      toast({
+        title: "Admin Email Generated",
+        description: "Overdue payment summary is ready to be sent.",
+      });
+
+    } catch (error) {
+      console.error("Failed to generate admin email:", error);
+      toast({
+        variant: "destructive",
+        title: "Generation Failed",
+        description: "Could not generate the admin notification email.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendEmail = () => {
+    if (!emailContent) return;
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(emailContent.subject)}&body=${encodeURIComponent(emailContent.body)}`;
+    window.open(mailtoLink, '_blank');
+  };
+
+
+  return (
+    <Card className="border-destructive bg-destructive/5">
+        <CardHeader>
+            <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-destructive" />
+                <div>
+                    <CardTitle className="text-destructive">Overdue Payment Alert</CardTitle>
+                    <CardDescription>
+                        Generate a summary email to notify admins about all overdue tenants.
+                    </CardDescription>
+                </div>
+            </div>
+        </CardHeader>
+        {emailContent && (
+             <CardContent className="space-y-4">
+                <div className="space-y-1 rounded-md border bg-background p-4">
+                    <h4 className="font-medium">Email Subject:</h4>
+                    <p className="text-sm text-muted-foreground">{emailContent.subject}</p>
+                </div>
+                 <div className="space-y-1 rounded-md border bg-background p-4">
+                    <h4 className="font-medium">Email Body Preview:</h4>
+                    <p className="line-clamp-3 text-sm text-muted-foreground whitespace-pre-wrap">{emailContent.body}</p>
+                </div>
+            </CardContent>
+        )}
+        <CardFooter className="flex justify-between">
+            <Button size="sm" variant="outline" onClick={handleGenerateEmail} disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                {emailContent ? 'Regenerate Email' : 'Generate Admin Email'}
+            </Button>
+            <Button size="sm" onClick={handleSendEmail} disabled={!emailContent || isLoading}>
+                <Mail className="mr-2 h-4 w-4" />
+                Send Email to Admins
+            </Button>
+        </CardFooter>
+    </Card>
+  )
+}
+
 
 function ReminderCategory({ title, tenants, proximity }: { title: string, tenants: TenantWithDetails[], proximity: string }) {
   if (tenants.length === 0) return null;
@@ -141,12 +231,15 @@ export function CategorizedRentReminders({ categorizedTenants }: { categorizedTe
   ].filter(Boolean) as string[];
 
   return (
-    <Accordion type="multiple" defaultValue={defaultOpen} className="w-full space-y-4">
-      <ReminderCategory title="Due Today" tenants={dueToday} proximity="today" />
-      <ReminderCategory title="Due Tomorrow" tenants={dueIn1Day} proximity="tomorrow" />
-      <ReminderCategory title="Due in 2 Days" tenants={dueIn2Days} proximity="in 2 days" />
-      <ReminderCategory title="Due in 3 Days" tenants={dueIn3Days} proximity="in 3 days" />
-      <ReminderCategory title="Overdue" tenants={overdue} proximity="overdue" />
-    </Accordion>
+    <div className="space-y-4">
+      <OverdueAdminReminder overdueTenants={overdue} />
+      <Accordion type="multiple" defaultValue={defaultOpen} className="w-full space-y-4">
+        <ReminderCategory title="Due Today" tenants={dueToday} proximity="today" />
+        <ReminderCategory title="Due Tomorrow" tenants={dueIn1Day} proximity="tomorrow" />
+        <ReminderCategory title="Due in 2 Days" tenants={dueIn2Days} proximity="in 2 days" />
+        <ReminderCategory title="Due in 3 Days" tenants={dueIn3Days} proximity="in 3 days" />
+        <ReminderCategory title="Overdue" tenants={overdue} proximity="overdue" />
+      </Accordion>
+    </div>
   );
 }
