@@ -7,7 +7,6 @@ export type Tenant = {
   rentAmount: number;
   paymentDay: number; // Day of the month rent is due
   leaseStartDate: string;
-  leaseEndDate: string;
 };
 
 export type Property = {

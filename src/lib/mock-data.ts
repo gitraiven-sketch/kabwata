@@ -29,11 +29,11 @@ const generateProperties = (): Property[] => {
 export const properties: Property[] = generateProperties();
 
 export const tenants: Tenant[] = [
-  { id: 'ten1', name: 'Besa Chibwe', email: 'besa.c@example.com', phone: '+260977112233', propertyId: 'prop_groupa_1', rentAmount: 2500, paymentDay: 1, leaseStartDate: '2023-01-01', leaseEndDate: '2024-12-31' },
-  { id: 'ten2', name: 'Chisomo Phiri', email: 'chisomo.p@example.com', phone: '+260966223344', propertyId: 'prop_groupa_2', rentAmount: 3000, paymentDay: 5, leaseStartDate: '2022-06-01', leaseEndDate: '2024-05-31' },
-  { id: 'ten3', name: 'Daliso Mumba', email: 'daliso.m@example.com', phone: '+260955334455', propertyId: 'prop_groupb_1', rentAmount: 1200, paymentDay: 1, leaseStartDate: '2023-11-01', leaseEndDate: '2024-10-31' },
-  { id: 'ten4', name: 'Emeli Zande', email: 'emeli.z@example.com', phone: '+260777445566', propertyId: 'prop_groupb_2', rentAmount: 5500, paymentDay: 10, leaseStartDate: '2024-02-15', leaseEndDate: '2025-02-14' },
-  { id: 'ten5', name: 'Fungai Banda', email: 'fungai.b@example.com', phone: '+260765556677', propertyId: 'prop_groupc_1', rentAmount: 4000, paymentDay: 28, leaseStartDate: '2023-08-01', leaseEndDate: '2024-07-31' },
+  { id: 'ten1', name: 'Besa Chibwe', email: 'besa.c@example.com', phone: '+260977112233', propertyId: 'prop_groupa_1', rentAmount: 2500, paymentDay: 1, leaseStartDate: '2023-01-01' },
+  { id: 'ten2', name: 'Chisomo Phiri', email: 'chisomo.p@example.com', phone: '+260966223344', propertyId: 'prop_groupa_2', rentAmount: 3000, paymentDay: 5, leaseStartDate: '2022-06-01' },
+  { id: 'ten3', name: 'Daliso Mumba', email: 'daliso.m@example.com', phone: '+260955334455', propertyId: 'prop_groupb_1', rentAmount: 1200, paymentDay: 1, leaseStartDate: '2023-11-01' },
+  { id: 'ten4', name: 'Emeli Zande', email: 'emeli.z@example.com', phone: '+260777445566', propertyId: 'prop_groupb_2', rentAmount: 5500, paymentDay: 10, leaseStartDate: '2024-02-15' },
+  { id: 'ten5', name: 'Fungai Banda', email: 'fungai.b@example.com', phone: '+260765556677', propertyId: 'prop_groupc_1', rentAmount: 4000, paymentDay: 28, leaseStartDate: '2023-08-01' },
 ];
 
 const today = new Date();

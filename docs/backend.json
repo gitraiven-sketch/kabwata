@@ -39,11 +39,6 @@
           "type": "string",
           "format": "date",
           "description": "The start date of the lease."
-        },
-        "leaseEndDate": {
-          "type": "string",
-          "format": "date",
-          "description": "The end date of the lease."
         }
       },
       "required": [
@@ -53,8 +48,7 @@
         "propertyId",
         "rentAmount",
         "paymentDay",
-        "leaseStartDate",
-        "leaseEndDate"
+        "leaseStartDate"
       ]
     },
     "Property": {

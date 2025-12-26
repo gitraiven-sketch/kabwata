@@ -217,18 +217,6 @@ function AddTenantForm({
                 className="col-span-3"
               />
             </div>
-             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="leaseEndDate" className="text-right">
-                Lease End
-              </Label>
-              <Input
-                id="leaseEndDate"
-                name="leaseEndDate"
-                type="date"
-                required
-                className="col-span-3"
-              />
-            </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
@@ -387,7 +375,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
               <TableHead>Phone Number</TableHead>
               <TableHead>Rent Amount</TableHead>
               <TableHead>Payment Status</TableHead>
-              <TableHead>Lease End Date</TableHead>
+              <TableHead>Lease Start Date</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -424,7 +412,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                       {tenant.paymentStatus}
                     </Badge>
                   </TableCell>
-                  <TableCell>{format(new Date(tenant.leaseEndDate), 'PP')}</TableCell>
+                  <TableCell>{format(new Date(tenant.leaseStartDate), 'PP')}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
