@@ -60,6 +60,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { Combobox } from '../ui/combobox';
 
 const statusStyles: Record<PaymentStatus, string> = {
   Paid: 'bg-green-100 text-green-800 border-green-200',
@@ -102,7 +103,10 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [editedTenant, setEditedTenant] = React.useState({...tenant, propertyName: tenant.property.name});
+  const [editedTenant, setEditedTenant] = React.useState({...tenant });
+  const [propertyId, setPropertyId] = React.useState(tenant.propertyId);
+
+  const propertyOptions = properties.map(p => ({ value: p.id, label: p.name }));
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -116,34 +120,29 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!firestore || !auth) return;
+    if (!firestore || !auth || !propertyId) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: "Please select a property.",
+      });
+      return;
+    }
 
     setIsLoading(true);
     const tenantRef = doc(firestore, 'tenants', tenant.id);
     
-    const { id, property, paymentStatus, dueDate, propertyName, ...updateData } = {
+    const { id, property, paymentStatus, dueDate, ...updateData } = {
         ...editedTenant,
         phone: editedTenant.phone.startsWith('+260') ? editedTenant.phone : `+260${editedTenant.phone.replace(/^0/, '')}`
     };
 
-    const targetProperty = properties.find(p => p.name.toLowerCase() === propertyName.toLowerCase() || p.name.toLowerCase().replace(/ /g, '') === propertyName.toLowerCase().replace(/ /g, ''));
-
-
-    if (!targetProperty) {
-      toast({
-        variant: 'destructive',
-        title: 'Property not found',
-        description: `Could not find a property named "${propertyName}". Please check the name and try again.`
-      });
-      setIsLoading(false);
-      return;
-    }
 
     updateDoc(tenantRef, {
       ...updateData,
       rentAmount: Number(updateData.rentAmount),
       paymentDay: Number(updateData.paymentDay),
-      propertyId: targetProperty.id,
+      propertyId: propertyId,
     })
       .then(() => {
         toast({
@@ -201,7 +200,7 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="propertyName" className="text-right">Property</Label>
-              <Input id="propertyName" name="propertyName" value={editedTenant.propertyName} onChange={handleChange} required className="col-span-3" placeholder="e.g. B1, A1, Group C - Shop 5"/>
+              <Combobox name="propertyId" options={propertyOptions} placeholder='Select property' value={propertyId} onValueChange={setPropertyId} className="col-span-3" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="rentAmount" className="text-right">Rent (K)</Label>
@@ -236,28 +235,28 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const [propertyId, setPropertyId] = React.useState('');
+  
+  const propertyOptions = properties.map(p => ({ value: p.id, label: p.name }));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!firestore || !auth) return;
 
-    setIsLoading(true);
-    const formData = new FormData(event.currentTarget);
-    const phone = (formData.get('phone') as string).replace(/^0/, '');
-    const propertyName = formData.get('propertyName') as string;
-
-    const targetProperty = properties.find(p => p.name.toLowerCase() === propertyName.toLowerCase() || p.name.toLowerCase().replace(/ /g, '') === propertyName.toLowerCase().replace(/ /g, ''));
-    
-    if(!targetProperty){
-        toast({ variant: 'destructive', title: 'Error', description: `Property "${propertyName}" not found. Please check the name.`});
+    if(!propertyId){
+        toast({ variant: 'destructive', title: 'Error', description: `Please select a property.`});
         setIsLoading(false);
         return;
     }
 
+    setIsLoading(true);
+    const formData = new FormData(event.currentTarget);
+    const phone = (formData.get('phone') as string).replace(/^0/, '');
+    
     const newTenantData = {
         name: formData.get('name') as string,
         phone: `+260${phone}`,
-        propertyId: targetProperty.id,
+        propertyId: propertyId,
         rentAmount: Number(formData.get('rentAmount')),
         paymentDay: Number(formData.get('paymentDay')),
         leaseStartDate: formData.get('leaseStartDate') as string,
@@ -274,6 +273,7 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
         onTenantAdded();
         setOpen(false);
         (event.target as HTMLFormElement).reset();
+        setPropertyId('');
       })
       .catch((error: any) => {
         const permissionError = new FirestorePermissionError({
@@ -326,7 +326,7 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
               <Label htmlFor="propertyName" className="text-right">
                 Property
               </Label>
-               <Input id="propertyName" name="propertyName" required className="col-span-3" placeholder="e.g. B1, A1, Group C - Shop 5" />
+               <Combobox name="propertyId" options={propertyOptions} placeholder='Select property' value={propertyId} onValueChange={setPropertyId} className="col-span-3" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="rentAmount" className="text-right">
@@ -547,6 +547,12 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
       errorEmitter.emit('permission-error', permissionError);
     }
   }
+  
+  const getOrdinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
 
   return (
     <div className="space-y-4">
@@ -569,7 +575,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             <TableRow>
               <TableHead>Tenant</TableHead>
               <TableHead>Property</TableHead>
-              <TableHead>Rent Amount</TableHead>
+              <TableHead>Pay Day</TableHead>
               <TableHead>Payment Status</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>
@@ -601,7 +607,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                     </div>
                   </TableCell>
                   <TableCell>{tenant.property?.name || 'N/A'}</TableCell>
-                  <TableCell>K{tenant.rentAmount.toLocaleString()}</TableCell>
+                  <TableCell>{getOrdinal(tenant.paymentDay)} of month</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={statusStyles[tenant.paymentStatus]}>
                       {tenant.paymentStatus}
@@ -654,3 +660,5 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     </div>
   );
 }
+
+    
