@@ -58,7 +58,6 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Combobox } from '@/components/ui/combobox';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -193,15 +192,13 @@ function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPayme
   );
 }
 
-function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenant, onTenantUpdated: () => void, properties: Property[] }) {
+function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: TenantWithDetails, onTenantUpdated: () => void, properties: Property[] }) {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [editedTenant, setEditedTenant] = React.useState(tenant);
-
-  const propertyOptions = properties.map(p => ({ value: p.id, label: `${p.group} - Shop ${p.shopNumber} (${p.name})`}));
+  const [editedTenant, setEditedTenant] = React.useState({...tenant, propertyName: tenant.property.name});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -220,15 +217,28 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
     setIsLoading(true);
     const tenantRef = doc(firestore, 'tenants', tenant.id);
     
-    const { id, ...updateData } = {
+    const { id, property, paymentStatus, dueDate, payments, propertyName, ...updateData } = {
         ...editedTenant,
         phone: editedTenant.phone.startsWith('+260') ? editedTenant.phone : `+260${editedTenant.phone.replace(/^0/, '')}`
     };
+
+    const targetProperty = properties.find(p => p.name.toLowerCase() === propertyName.toLowerCase());
+
+    if (!targetProperty) {
+      toast({
+        variant: 'destructive',
+        title: 'Property not found',
+        description: `Could not find a property named "${propertyName}". Please check the name and try again.`
+      });
+      setIsLoading(false);
+      return;
+    }
 
     updateDoc(tenantRef, {
       ...updateData,
       rentAmount: Number(updateData.rentAmount),
       paymentDay: Number(updateData.paymentDay),
+      propertyId: targetProperty.id,
     })
       .then(() => {
         toast({
@@ -285,15 +295,8 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
                 </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="propertyId" className="text-right">Property</Label>
-               <Combobox
-                name="propertyId"
-                options={propertyOptions}
-                placeholder="Select property..."
-                className="col-span-3"
-                value={editedTenant.propertyId}
-                onValueChange={(value) => handleValueChange('propertyId', value)}
-              />
+              <Label htmlFor="propertyName" className="text-right">Property</Label>
+              <Input id="propertyName" name="propertyName" value={editedTenant.propertyName} onChange={handleChange} required className="col-span-3" placeholder="e.g. Group A - Shop 1"/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="rentAmount" className="text-right">Rent (K)</Label>
@@ -328,9 +331,6 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [propertyId, setPropertyId] = React.useState('');
-
-  const propertyOptions = properties.map(p => ({ value: p.id, label: `${p.group} - Shop ${p.shopNumber} (${p.name})`}));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -339,21 +339,24 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
     setIsLoading(true);
     const formData = new FormData(event.currentTarget);
     const phone = (formData.get('phone') as string).replace(/^0/, '');
-    const newTenantData = {
-        name: formData.get('name') as string,
-        phone: `+260${phone}`,
-        propertyId: propertyId,
-        rentAmount: Number(formData.get('rentAmount')),
-        paymentDay: Number(formData.get('paymentDay')),
-        leaseStartDate: formData.get('leaseStartDate') as string,
-    };
+    const propertyName = formData.get('propertyName') as string;
+
+    const targetProperty = properties.find(p => p.name.toLowerCase() === propertyName.toLowerCase() || p.name.toLowerCase().replace(/ /g, '') === propertyName.toLowerCase().replace(/ /g, ''));
     
-    if(!newTenantData.propertyId){
-        toast({ variant: 'destructive', title: 'Error', description: 'Please select a property.'});
+    if(!targetProperty){
+        toast({ variant: 'destructive', title: 'Error', description: `Property "${propertyName}" not found. Please check the name.`});
         setIsLoading(false);
         return;
     }
 
+    const newTenantData = {
+        name: formData.get('name') as string,
+        phone: `+260${phone}`,
+        propertyId: targetProperty.id,
+        rentAmount: Number(formData.get('rentAmount')),
+        paymentDay: Number(formData.get('paymentDay')),
+        leaseStartDate: formData.get('leaseStartDate') as string,
+    };
 
     const tenantsRef = collection(firestore, 'tenants');
     addDoc(tenantsRef, newTenantData)
@@ -364,7 +367,6 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
         });
         onTenantAdded();
         setOpen(false);
-        setPropertyId('');
         (event.target as HTMLFormElement).reset();
       })
       .catch((error: any) => {
@@ -415,17 +417,10 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
                 </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="propertyId" className="text-right">
+              <Label htmlFor="propertyName" className="text-right">
                 Property
               </Label>
-               <Combobox
-                name="propertyId"
-                options={propertyOptions}
-                placeholder="Select property..."
-                className="col-span-3"
-                value={propertyId}
-                onValueChange={setPropertyId}
-              />
+               <Input id="propertyName" name="propertyName" required className="col-span-3" placeholder="e.g. B1, A1, Group C - Shop 5" />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="rentAmount" className="text-right">
