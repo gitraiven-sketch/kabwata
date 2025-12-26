@@ -108,7 +108,7 @@ function EditPropertyForm({
               <Input
                 id="rentAmount"
                 name="rentAmount"
-                type="number"
+                type="text"
                 value={editedProperty.rentAmount}
                 onChange={handleChange}
                 required
