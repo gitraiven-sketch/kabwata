@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useFirestore } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import type { Tenant, Property } from '@/lib/types';
 import {
@@ -26,6 +26,8 @@ import {
   ChartConfig,
 } from '@/components/ui/chart';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type DashboardData = {
   totalTenants: number;
@@ -58,20 +60,36 @@ const chartConfig: ChartConfig = {
 
 export function DashboardClient({ data: initialData }: { data: DashboardData }) {
   const firestore = useFirestore();
+  const auth = useAuth();
   const [data, setData] = useState(initialData);
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !auth) return;
 
     const tenantsRef = collection(firestore, 'tenants');
     const propertiesRef = collection(firestore, 'properties');
 
     const unsubTenants = onSnapshot(tenantsRef, (snapshot) => {
         setData(prevData => ({...prevData, totalTenants: snapshot.size}));
+    }, (error) => {
+        const permissionError = new FirestorePermissionError({
+          path: tenantsRef.path,
+          operation: 'list',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     const unsubProperties = onSnapshot(propertiesRef, async (propSnapshot) => {
-        const tenantSnapshot = await getDocs(tenantsRef);
+        const tenantSnapshot = await getDocs(tenantsRef).catch(error => {
+            const permissionError = new FirestorePermissionError({
+              path: tenantsRef.path,
+              operation: 'list',
+            }, auth);
+            errorEmitter.emit('permission-error', permissionError);
+            // Return an empty snapshot to prevent further errors
+            return { docs: [] };
+        });
+
         const occupiedPropertyIds = new Set(tenantSnapshot.docs.map(doc => (doc.data() as Tenant).propertyId));
         
         const vacantCount = propSnapshot.docs.filter(doc => !occupiedPropertyIds.has(doc.id)).length;
@@ -81,13 +99,19 @@ export function DashboardClient({ data: initialData }: { data: DashboardData }) 
             totalProperties: propSnapshot.size,
             vacantProperties: vacantCount,
         }));
+    }, (error) => {
+        const permissionError = new FirestorePermissionError({
+            path: propertiesRef.path,
+            operation: 'list',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
     });
 
     return () => {
         unsubTenants();
         unsubProperties();
     };
-  }, [firestore]);
+  }, [firestore, auth]);
 
 
   const chartData = [
