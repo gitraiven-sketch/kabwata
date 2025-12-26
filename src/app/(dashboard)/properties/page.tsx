@@ -1,5 +1,4 @@
 import { PropertyList } from '@/components/properties/property-list';
-import { SeedDatabase } from '@/components/properties/seed-database';
 
 export default async function PropertiesPage() {
   return (
@@ -10,7 +9,6 @@ export default async function PropertiesPage() {
           View and manage all properties in the complex.
         </p>
       </div>
-      <SeedDatabase />
       <PropertyList properties={[]} />
     </div>
   );
