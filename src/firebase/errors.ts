@@ -14,8 +14,8 @@ export class FirestorePermissionError extends Error {
   public user: User | null;
   public token: any;
 
-  constructor(context: SecurityRuleContext, auth: Auth) {
-    const user = auth.currentUser;
+  constructor(context: SecurityRuleContext, auth: Auth | null) {
+    const user = auth?.currentUser || null;
     const message = `The following request was denied by Firestore Security Rules:\n${JSON.stringify(
       {
         ...context,
