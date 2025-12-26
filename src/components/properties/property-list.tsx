@@ -92,7 +92,7 @@ function PropertyForm({
     const isNumberField = ['shopNumber', 'paymentDay'].includes(name);
     setFormData(prev => ({ 
         ...prev, 
-        [name]: isNumberField ? (value === '' ? '' : Number(value)) : value 
+        [name]: isNumberField ? Number(value) : value 
     }));
   };
 
