@@ -2,6 +2,9 @@
 
 import { tenants, properties, payments } from './mock-data';
 import type { Tenant, Property, Payment, TenantWithDetails, PaymentStatus } from './types';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { initializeFirebase } from '@/firebase';
+
 
 function getPaymentStatus(tenant: Tenant, allPayments: Payment[]): { status: PaymentStatus, dueDate: Date } {
     const today = new Date();
@@ -28,33 +31,66 @@ function getPaymentStatus(tenant: Tenant, allPayments: Payment[]): { status: Pay
 }
 
 export async function getTenantsWithDetails(): Promise<TenantWithDetails[]> {
-    const propertyMap = new Map<string, Property>(properties.map(p => [p.id, p]));
-    const paymentsByTenant = new Map<string, Payment[]>();
+    try {
+        const { firestore } = initializeFirebase();
+        const tenantCollection = collection(firestore, 'tenants');
+        const tenantSnapshot = await getDocs(tenantCollection);
+        const tenantList = tenantSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
+        
+        const propertyMap = new Map<string, Property>(properties.map(p => [p.id, p]));
 
-    for (const payment of payments) {
-        if (!paymentsByTenant.has(payment.tenantId)) {
-            paymentsByTenant.set(payment.tenantId, []);
+        const tenantsWithDetails: TenantWithDetails[] = [];
+
+        for (const tenant of tenantList) {
+            const paymentCollection = collection(firestore, 'tenants', tenant.id, 'payments');
+            const paymentSnapshot = await getDocs(paymentCollection);
+            const tenantPayments = paymentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+            
+            const { status, dueDate } = getPaymentStatus(tenant, tenantPayments);
+
+            tenantsWithDetails.push({
+                ...tenant,
+                property: propertyMap.get(tenant.propertyId)!,
+                paymentStatus: status,
+                dueDate,
+                payments: tenantPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            });
         }
-        paymentsByTenant.get(payment.tenantId)!.push(payment);
+        
+        return tenantsWithDetails;
+
+    } catch (error) {
+        console.error("Error fetching tenants with details:", error);
+        // Fallback to mock data on server-side error
+        const propertyMap = new Map<string, Property>(properties.map(p => [p.id, p]));
+        const paymentsByTenant = new Map<string, Payment[]>();
+
+        for (const payment of payments) {
+            if (!paymentsByTenant.has(payment.tenantId)) {
+                paymentsByTenant.set(payment.tenantId, []);
+            }
+            paymentsByTenant.get(payment.tenantId)!.push(payment);
+        }
+        
+        return tenants.map(tenant => {
+            const tenantPayments = paymentsByTenant.get(tenant.id) || [];
+            const { status, dueDate } = getPaymentStatus(tenant, tenantPayments);
+            return {
+                ...tenant,
+                property: propertyMap.get(tenant.propertyId)!,
+                paymentStatus: status,
+                dueDate,
+                payments: tenantPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            };
+        });
     }
-    
-    return tenants.map(tenant => {
-        const tenantPayments = paymentsByTenant.get(tenant.id) || [];
-        const { status, dueDate } = getPaymentStatus(tenant, tenantPayments);
-        return {
-            ...tenant,
-            property: propertyMap.get(tenant.propertyId)!,
-            paymentStatus: status,
-            dueDate,
-            payments: tenantPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-        };
-    });
 }
+
 
 export async function getDashboardData() {
     const tenantsWithDetails = await getTenantsWithDetails();
 
-    const totalTenants = tenants.length;
+    const totalTenants = tenantsWithDetails.length;
     const totalProperties = properties.length;
     
     const statusCounts = tenantsWithDetails.reduce((acc, tenant) => {

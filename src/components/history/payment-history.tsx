@@ -10,9 +10,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
-import type { TenantWithDetails } from '@/lib/types';
+import { Loader2, Search } from 'lucide-react';
+import type { Tenant, Property, Payment } from '@/lib/types';
 import { format } from 'date-fns';
+import { useAuth, useFirestore } from '@/firebase';
+import { collection, collectionGroup, onSnapshot, query } from 'firebase/firestore';
+import { properties as mockProperties } from '@/lib/mock-data';
 
 type FullPaymentRecord = {
   paymentId: string;
@@ -23,23 +26,62 @@ type FullPaymentRecord = {
   date: Date;
 };
 
-export function PaymentHistory({ tenants }: { tenants: TenantWithDetails[] }) {
+export function PaymentHistory() {
+  const firestore = useFirestore();
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [allPayments, setAllPayments] = React.useState<FullPaymentRecord[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const allPayments: FullPaymentRecord[] = React.useMemo(() => {
-    return tenants
-      .flatMap((tenant) =>
-        tenant.payments.map((p) => ({
-          paymentId: p.id,
-          tenantName: tenant.name,
-          tenantId: tenant.id,
-          propertyName: tenant.property.name,
-          amount: p.amount,
-          date: new Date(p.date),
-        }))
-      )
-      .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [tenants]);
+  React.useEffect(() => {
+    if (!firestore) {
+      setIsLoading(false);
+      return;
+    }
+
+    const paymentsQuery = query(collectionGroup(firestore, 'payments'));
+    const tenantsQuery = query(collection(firestore, 'tenants'));
+
+    const propertyMap = new Map<string, Property>(mockProperties.map(p => [p.id, p]));
+    let tenantMap = new Map<string, Tenant>();
+
+    const unsubTenants = onSnapshot(tenantsQuery, (snapshot) => {
+      const newTenantMap = new Map<string, Tenant>();
+      snapshot.forEach(doc => {
+        newTenantMap.set(doc.id, { id: doc.id, ...doc.data() } as Tenant);
+      });
+      tenantMap = newTenantMap;
+    });
+
+    const unsubPayments = onSnapshot(paymentsQuery, (snapshot) => {
+      const paymentsData: FullPaymentRecord[] = [];
+      snapshot.forEach((doc) => {
+        const payment = { id: doc.id, ...doc.data() } as Payment;
+        const tenant = tenantMap.get(payment.tenantId);
+        if (tenant) {
+          const property = propertyMap.get(tenant.propertyId);
+          paymentsData.push({
+            paymentId: payment.id,
+            tenantName: tenant.name,
+            tenantId: tenant.id,
+            propertyName: property?.name || 'N/A',
+            amount: payment.amount,
+            date: new Date(payment.date),
+          });
+        }
+      });
+      setAllPayments(paymentsData.sort((a, b) => b.date.getTime() - a.date.getTime()));
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching payments: ", error);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubTenants();
+      unsubPayments();
+    };
+  }, [firestore]);
+
 
   const filteredPayments = allPayments.filter(
     (payment) =>
@@ -72,7 +114,13 @@ export function PaymentHistory({ tenants }: { tenants: TenantWithDetails[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredPayments.length > 0 ? (
+             {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+                </TableCell>
+              </TableRow>
+            ) : filteredPayments.length > 0 ? (
               filteredPayments.map((payment) => (
                 <TableRow key={payment.paymentId}>
                   <TableCell className="font-medium">{payment.tenantName}</TableCell>

@@ -11,6 +11,7 @@ import {
   getDocs,
   where,
   writeBatch,
+  serverTimestamp,
 } from 'firebase/firestore';
 import {
   Table,
@@ -37,8 +38,9 @@ import {
   Search,
   User,
   Loader2,
+  DollarSign,
 } from 'lucide-react';
-import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
+import type { TenantWithDetails, PaymentStatus, Tenant, Property, Payment } from '@/lib/types';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { generateRentReminder } from '@/ai/flows/automated-rent-reminders';
@@ -61,6 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { properties as mockProperties } from '@/lib/mock-data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -71,6 +74,113 @@ const statusStyles: Record<PaymentStatus, string> = {
   Overdue: 'bg-red-100 text-red-800 border-red-200',
   Upcoming: 'bg-blue-100 text-blue-800 border-blue-200',
 };
+
+function RecordPaymentForm({ tenant, onPaymentAdded }: { tenant: Tenant, onPaymentAdded: () => void }) {
+  const firestore = useFirestore();
+  const auth = useAuth();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [amount, setAmount] = React.useState(tenant.rentAmount);
+  const [date, setDate] = React.useState(new Date().toISOString().split('T')[0]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!firestore || !auth) return;
+
+    setIsLoading(true);
+    
+    const newPayment = {
+      tenantId: tenant.id,
+      amount: Number(amount),
+      date: new Date(date).toISOString(),
+    };
+
+    const paymentsRef = collection(firestore, 'tenants', tenant.id, 'payments');
+    addDoc(paymentsRef, newPayment)
+      .then(() => {
+        toast({
+          title: 'Payment Recorded',
+          description: `Payment of K${amount} for ${tenant.name} has been recorded.`,
+        });
+        onPaymentAdded();
+        setOpen(false);
+      })
+      .catch((error) => {
+        const permissionError = new FirestorePermissionError({
+          path: paymentsRef.path,
+          operation: 'create',
+          requestResourceData: newPayment,
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+          Record Payment
+        </DropdownMenuItem>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Record Payment for {tenant.name}</DialogTitle>
+            <DialogDescription>
+              Enter the details of the payment received.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="amount" className="text-right">
+                Amount (K)
+              </Label>
+              <Input
+                id="amount"
+                name="amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                required
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="date" className="text-right">
+                Payment Date
+              </Label>
+              <Input
+                id="date"
+                name="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Payment
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function AddTenantForm({
   onTenantAdded,
@@ -83,8 +193,8 @@ function AddTenantForm({
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
 
-  // In a real app, properties would also be fetched from Firestore
   const properties: Property[] = mockProperties;
+  const propertyOptions = properties.map(p => ({ value: p.id, label: `${p.group} - Shop ${p.shopNumber} (${p.name})`}));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -166,18 +276,12 @@ function AddTenantForm({
               <Label htmlFor="propertyId" className="text-right">
                 Property
               </Label>
-              <Select name="propertyId" required>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a property" />
-                </SelectTrigger>
-                <SelectContent>
-                  {properties.map((prop) => (
-                    <SelectItem key={prop.id} value={prop.id}>
-                      {prop.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+               <Combobox
+                name="propertyId"
+                options={propertyOptions}
+                placeholder="Select property..."
+                className="col-span-3"
+              />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="rentAmount" className="text-right">
@@ -249,35 +353,50 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
     const tenantsQuery = query(collection(firestore, "tenants"));
     
-    // In a real app, properties and payments would be collections in Firestore
+    // In a real app, properties would also be collections in Firestore
     const propertyMap = new Map<string, Property>(mockProperties.map(p => [p.id, p]));
     
-    const unsubscribe = onSnapshot(tenantsQuery, (querySnapshot) => {
-        const tenantsData: TenantWithDetails[] = [];
-        querySnapshot.forEach((doc) => {
-            const tenantData = { id: doc.id, ...doc.data() } as Tenant;
+    const unsubscribe = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
+        const tenantsDataPromises = tenantsSnapshot.docs.map(async (tenantDoc) => {
+            const tenantData = { id: tenantDoc.id, ...tenantDoc.data() } as Tenant;
             
-            // This payment status logic is simplified. In a real app, this would be more robust.
-            const today = new Date();
-            const dueDate = new Date(today.getFullYear(), today.getMonth(), tenantData.paymentDay);
-            let paymentStatus: PaymentStatus = 'Upcoming';
-            if (today > dueDate) paymentStatus = 'Overdue';
-            // A more complex check would look at the `payments` subcollection.
+            const paymentsQuery = query(collection(firestore, 'tenants', tenantDoc.id, 'payments'));
+            const paymentsSnapshot = await getDocs(paymentsQuery);
+            const tenantPayments = paymentsSnapshot.docs.map(doc => ({id: doc.id, ...doc.data() } as Payment));
 
-            tenantsData.push({
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth();
+            const dueDate = new Date(currentYear, currentMonth, tenantData.paymentDay);
+
+            const paymentForCurrentMonth = tenantPayments.find(p => 
+                new Date(p.date).getMonth() === currentMonth &&
+                new Date(p.date).getFullYear() === currentYear
+            );
+            
+            let paymentStatus: PaymentStatus = 'Upcoming';
+            if (paymentForCurrentMonth) {
+                paymentStatus = 'Paid';
+            } else if (today > dueDate) {
+                paymentStatus = 'Overdue';
+            }
+
+            return {
                 ...tenantData,
                 property: propertyMap.get(tenantData.propertyId)!,
-                paymentStatus: paymentStatus, // This is a simplified status
+                paymentStatus: paymentStatus,
                 dueDate: dueDate,
-                payments: [], // Payments would be fetched from a subcollection
-            });
+                payments: tenantPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+            };
         });
+
+        const tenantsData = await Promise.all(tenantsDataPromises);
         setTenants(tenantsData);
         setIsLoading(false);
     },
     async (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: tenantsQuery.path,
+            path: (tenantsQuery as any).path,
             operation: 'list',
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
@@ -335,20 +454,29 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   const handleDeleteTenant = async (tenantId: string) => {
     if (!firestore || !auth) return;
     const tenantDocRef = doc(firestore, 'tenants', tenantId);
-    deleteDoc(tenantDocRef)
-        .then(() => {
-            toast({
-                title: "Tenant Deleted",
-                description: "The tenant has been removed from the system.",
-            });
-        })
-        .catch((error) => {
-            const permissionError = new FirestorePermissionError({
-                path: tenantDocRef.path,
-                operation: 'delete',
-            }, auth);
-            errorEmitter.emit('permission-error', permissionError);
-        });
+    
+    // First, delete all payments in the subcollection
+    const paymentsRef = collection(firestore, 'tenants', tenantId, 'payments');
+    const paymentsSnapshot = await getDocs(paymentsRef);
+    const batch = writeBatch(firestore);
+    paymentsSnapshot.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    try {
+      await batch.commit(); // Delete payments
+      await deleteDoc(tenantDocRef); // Then delete tenant
+      toast({
+          title: "Tenant Deleted",
+          description: "The tenant and all their payment records have been removed.",
+      });
+    } catch (error) {
+      const permissionError = new FirestorePermissionError({
+          path: tenantDocRef.path,
+          operation: 'delete',
+      }, auth);
+      errorEmitter.emit('permission-error', permissionError);
+    }
   }
 
   return (
@@ -363,7 +491,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <AddTenantForm onTenantAdded={() => fetchTenants()} />
+        <AddTenantForm onTenantAdded={() => { /* data re-fetches automatically */ }} />
       </div>
 
       <div className="rounded-lg border">
@@ -372,7 +500,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             <TableRow>
               <TableHead>Tenant</TableHead>
               <TableHead>Property</TableHead>
-              <TableHead>Phone Number</TableHead>
               <TableHead>Rent Amount</TableHead>
               <TableHead>Payment Status</TableHead>
               <TableHead>Lease Start Date</TableHead>
@@ -384,7 +511,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                 </TableCell>
               </TableRow>
@@ -405,7 +532,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                     </div>
                   </TableCell>
                   <TableCell>{tenant.property?.name || 'N/A'}</TableCell>
-                  <TableCell>{tenant.phone}</TableCell>
                   <TableCell>K{tenant.rentAmount.toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={statusStyles[tenant.paymentStatus]}>
@@ -423,6 +549,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <RecordPaymentForm tenant={tenant} onPaymentAdded={() => { /* re-fetch handled by snapshot */ }} />
                         <DropdownMenuItem>Edit</DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => handleSendReminder(tenant)}>Send Reminder</DropdownMenuItem>
                         <DropdownMenuItem 
@@ -438,7 +565,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No tenants found. Click "Add Tenant" to get started.
                 </TableCell>
               </TableRow>

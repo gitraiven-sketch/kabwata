@@ -1,4 +1,3 @@
-import { getTenantsWithDetails } from '@/lib/data-helpers';
 import { PaymentHistory } from '@/components/history/payment-history';
 import {
   Card,
@@ -6,7 +5,6 @@ import {
 } from '@/components/ui/card';
 
 export default async function HistoryPage() {
-    const tenants = await getTenantsWithDetails();
 
   return (
     <div className="space-y-6">
@@ -18,7 +16,7 @@ export default async function HistoryPage() {
       </div>
       <Card>
           <CardContent className="pt-6">
-              <PaymentHistory tenants={tenants} />
+              <PaymentHistory />
           </CardContent>
       </Card>
     </div>
