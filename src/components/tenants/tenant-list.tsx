@@ -89,7 +89,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: 0,
+        rentAmount: 0, // This is now set to 0 as requested
         paymentDay: property.paymentDay, // Set payment day from property
         leaseStartDate: formData.get('leaseStartDate') as string,
         lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(), // Assume paid on lease start
@@ -218,15 +218,24 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         setProperties(props);
     }, (error) => {
         console.error("Error fetching properties:", error);
+        const permissionError = new FirestorePermissionError({
+            path: 'properties',
+            operation: 'list',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
     });
     
     const unsubTenants = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
+        let props: Property[] = properties;
+        // If properties are not loaded yet, fetch them once.
+        if (props.length === 0) {
+            const propsSnapshot = await getDocs(propertiesQuery);
+            props = propsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+            setProperties(props);
+        }
+        
         const propertyMap = new Map<string, Property>();
-        // We need to make sure we have the latest properties when tenants update
-        const propsSnapshot = await getDocs(propertiesQuery);
-        propsSnapshot.forEach(doc => {
-            propertyMap.set(doc.id, { id: doc.id, ...doc.data() } as Property);
-        });
+        props.forEach(p => propertyMap.set(p.id, p));
 
         const tenantsDataPromises = tenantsSnapshot.docs.map(async (tenantDoc) => {
             const tenantData = { id: tenantDoc.id, ...tenantDoc.data() } as Tenant;
@@ -247,7 +256,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             const property = propertyMap.get(tenantData.propertyId);
             
             if (!property) {
-                // This can happen if a property is deleted but the tenant record still exists
                 console.warn(`Could not find property with ID: ${tenantData.propertyId} for tenant ${tenantData.name}`);
                 return null;
             }
@@ -278,7 +286,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         unsubProperties();
     };
 
-  }, [firestore, auth]);
+  }, [firestore, auth, properties]);
 
 
   React.useEffect(() => {
