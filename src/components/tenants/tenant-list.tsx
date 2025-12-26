@@ -5,7 +5,6 @@ import {
   collection,
   onSnapshot,
   query,
-  getDocs,
   addDoc,
 } from 'firebase/firestore';
 import {
@@ -18,9 +17,8 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
-import { format, formatDistanceToNow, differenceInDays } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { generateRentReminder } from '@/ai/flows/automated-rent-reminders';
 import { useAuth, useFirestore } from '@/firebase';
 import {
   Dialog,
@@ -37,7 +35,22 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Input } from '@/components/ui/input';
 import { Button } from '../ui/button';
-import { TenantCalendar } from './tenant-calendar';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Badge } from '../ui/badge';
 
 function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: TenantWithDetails[] }) {
   const firestore = useFirestore();
@@ -217,6 +230,16 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
   );
 }
 
+function StatusBadge({ status }: { status: PaymentStatus }) {
+  const variant = {
+    Paid: 'default',
+    Overdue: 'destructive',
+    Upcoming: 'secondary',
+  }[status] as 'default' | 'destructive' | 'secondary';
+
+  return <Badge variant={variant}>{status}</Badge>;
+}
+
 export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDetails[] }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const firestore = useFirestore();
@@ -235,7 +258,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     const unsubProps = onSnapshot(propsQuery, (snapshot) => {
         const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
         setProperties(props);
-        // If there are no properties, we can stop loading for tenants as well.
         if (snapshot.empty) {
             setIsLoading(false);
         }
@@ -257,21 +279,14 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
       setIsLoading(false);
       return;
     }
-    
-    // Only fetch tenants if we have already tried to fetch properties
-    // and the properties fetch isn't running for the first time.
-    if (!isLoading && properties.length === 0) {
-      // If there are no properties, there can be no tenants with properties,
-      // so we can stop loading.
-      setTenants([]);
-      setIsLoading(false);
-      return;
-    }
-     if (isLoading && properties.length === 0) {
-      // Still waiting for properties to load, do nothing.
-      return;
-    }
 
+    if (properties.length === 0 && !isLoading) {
+        setTenants([]);
+        setIsLoading(false);
+        return;
+    }
+    
+    if (properties.length === 0) return;
 
     const tenantsQuery = query(collection(firestore, 'tenants'));
     const unsubTenants = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
@@ -296,22 +311,21 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             
             const property = propertyMap.get(tenantData.propertyId);
             
-            if (!property && properties.length > 0) { // Only warn if properties have loaded
+            if (!property) { 
                 console.warn(`Could not find property with ID: ${tenantData.propertyId} for tenant ${tenantData.name}`);
                 return null;
             }
 
             return {
                 ...tenantData,
-                property: property!, // We might not have it yet, but that's okay
+                property: property!,
                 paymentStatus: paymentStatus,
                 dueDate: dueDate,
             };
         });
 
         const tenantsData = (await Promise.all(tenantsDataPromises))
-            .filter(Boolean)
-            .filter(t => t.property) as TenantWithDetails[];
+            .filter(Boolean) as TenantWithDetails[];
 
         setTenants(tenantsData);
         setIsLoading(false);
@@ -335,13 +349,26 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
       (tenant.property && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   
+  const groupedTenants = React.useMemo(() => {
+    return filteredTenants.reduce((acc, tenant) => {
+        const group = tenant.property.group || 'Uncategorized';
+        if (!acc[group]) {
+            acc[group] = [];
+        }
+        acc[group].push(tenant);
+        return acc;
+    }, {} as Record<string, TenantWithDetails[]>);
+  }, [filteredTenants]);
+
+  const groupOrder = ['Group A', 'Group B', 'Group C', 'Uncategorized'];
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search tenants..."
+            placeholder="Search tenants or properties..."
             className="pl-9"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -350,12 +377,70 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         <AddTenantForm properties={properties} tenants={tenants} onTenantAdded={() => { /* data re-fetches automatically */ }} />
       </div>
 
-       {(isLoading) ? (
-          <div className="flex h-64 w-full items-center justify-center rounded-lg border">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+       {isLoading ? (
+            <div className="flex h-64 w-full items-center justify-center rounded-lg border">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : filteredTenants.length > 0 ? (
+            <Accordion type="multiple" defaultValue={groupOrder} className="w-full">
+            {groupOrder.map(groupName => {
+                const tenantsInGroup = groupedTenants[groupName];
+                if (!tenantsInGroup || tenantsInGroup.length === 0) return null;
+
+                return (
+                    <AccordionItem value={groupName} key={groupName}>
+                        <AccordionTrigger className="text-lg font-semibold">
+                            {groupName} ({tenantsInGroup.length} tenants)
+                        </AccordionTrigger>
+                        <AccordionContent>
+                            <Table>
+                                <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[300px]">Tenant</TableHead>
+                                    <TableHead>Property</TableHead>
+                                    <TableHead>Due Date</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                {tenantsInGroup.map((tenant) => (
+                                    <TableRow key={tenant.id}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-9 w-9">
+                                                <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <div className="font-medium">{tenant.name}</div>
+                                                <div className="text-xs text-muted-foreground">{tenant.phone}</div>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>{tenant.property.name}</TableCell>
+                                    <TableCell>{format(tenant.dueDate, 'do MMMM')}</TableCell>
+                                    <TableCell>
+                                        <StatusBadge status={tenant.paymentStatus} />
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                    </TableRow>
+                                ))}
+                                </TableBody>
+                            </Table>
+                        </AccordionContent>
+                    </AccordionItem>
+                )
+            })}
+            </Accordion>
         ) : (
-          <TenantCalendar tenants={filteredTenants} />
+             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 py-24 text-center">
+                <h3 className="mt-4 text-lg font-semibold">No Tenants Found</h3>
+                <p className="mb-4 mt-2 text-sm text-muted-foreground">Try adjusting your search or add a new tenant to get started.</p>
+            </div>
         )}
     </div>
   );
