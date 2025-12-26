@@ -1,7 +1,6 @@
 export type Tenant = {
   id: string;
   name: string;
-  email: string;
   phone: string;
   propertyId: string;
   rentAmount: number;

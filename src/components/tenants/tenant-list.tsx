@@ -269,10 +269,6 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
               <Input id="name" name="name" value={editedTenant.name} onChange={handleChange} required className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">Email</Label>
-              <Input id="email" name="email" type="email" value={editedTenant.email} onChange={handleChange} required className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="phone" className="text-right">Phone</Label>
               <Input id="phone" name="phone" value={editedTenant.phone} onChange={handleChange} required className="col-span-3" />
             </div>
@@ -320,6 +316,7 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+  const [propertyId, setPropertyId] = React.useState('');
 
   const propertyOptions = properties.map(p => ({ value: p.id, label: `${p.group} - Shop ${p.shopNumber} (${p.name})`}));
 
@@ -329,14 +326,24 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
 
     setIsLoading(true);
     const formData = new FormData(event.currentTarget);
-    const newTenantData = Object.fromEntries(formData.entries()) as Omit<Tenant, 'id'>;
+    const newTenantData = {
+        name: formData.get('name') as string,
+        phone: formData.get('phone') as string,
+        propertyId: propertyId,
+        rentAmount: Number(formData.get('rentAmount')),
+        paymentDay: Number(formData.get('paymentDay')),
+        leaseStartDate: formData.get('leaseStartDate') as string,
+    };
+    
+    if(!newTenantData.propertyId){
+        toast({ variant: 'destructive', title: 'Error', description: 'Please select a property.'});
+        setIsLoading(false);
+        return;
+    }
+
 
     const tenantsRef = collection(firestore, 'tenants');
-    addDoc(tenantsRef, {
-        ...newTenantData,
-        rentAmount: Number(newTenantData.rentAmount),
-        paymentDay: Number(newTenantData.paymentDay),
-      })
+    addDoc(tenantsRef, newTenantData)
       .then(() => {
         toast({
           title: 'Tenant Added',
@@ -344,6 +351,8 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
         });
         onTenantAdded();
         setOpen(false);
+        setPropertyId('');
+        (event.target as HTMLFormElement).reset();
       })
       .catch((error: any) => {
         const permissionError = new FirestorePermissionError({
@@ -382,18 +391,6 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
               <Input id="name" name="name" required className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="phone" className="text-right">
                 Phone
               </Label>
@@ -408,6 +405,8 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
                 options={propertyOptions}
                 placeholder="Select property..."
                 className="col-span-3"
+                value={propertyId}
+                onValueChange={setPropertyId}
               />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
@@ -558,7 +557,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   const filteredTenants = tenants.filter(
     (tenant) =>
       tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tenant.email && tenant.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (tenant.property && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -609,13 +607,13 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             receiptUrl: payment.receiptUrl,
         });
 
-        const mailtoLink = `mailto:${tenant.email}?subject=${encodeURIComponent(result.subject)}&body=${encodeURIComponent(result.body)}`;
-
+        // The email field is removed, so we can't send an email.
+        // For now, let's just show the generated content in a toast.
         toast({
-            title: 'Email Ready!',
-            description: 'Click the button to open in your email client.',
-            action: <Button onClick={() => window.open(mailtoLink)}>Open Email</Button>
+            title: 'Email Content Generated',
+            description: "Email functionality is disabled as the tenant email field has been removed.",
         });
+
 
     } catch (error) {
         console.error('Failed to generate receipt email:', error);
@@ -729,7 +727,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                       <div>
                         <div>{tenant.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          {tenant.email}
+                          {tenant.phone}
                         </div>
                       </div>
                     </div>

@@ -14,11 +14,6 @@
           "type": "string",
           "description": "The name of the tenant."
         },
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The email address of the tenant."
-        },
         "phone": {
           "type": "string",
           "description": "The phone number of the tenant."
@@ -43,7 +38,6 @@
       },
       "required": [
         "name",
-        "email",
         "phone",
         "propertyId",
         "rentAmount",
