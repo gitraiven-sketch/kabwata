@@ -34,7 +34,7 @@ export function Combobox({ name, options, placeholder, className, value: control
   
   const isControlled = controlledValue !== undefined;
   const value = isControlled ? controlledValue : internalValue;
-  const setValue = isControlled ? onValueChange! : setInternalValue;
+  const setValue = isControlled && onValueChange ? onValueChange : setInternalValue;
 
 
   return (
@@ -65,7 +65,11 @@ export function Combobox({ name, options, placeholder, className, value: control
                     key={option.value}
                     value={option.value}
                     onSelect={(currentValue) => {
-                        setValue(currentValue === value ? "" : currentValue)
+                        const newValue = currentValue === value ? "" : currentValue
+                        setValue(newValue);
+                        if (onValueChange) {
+                            onValueChange(newValue);
+                        }
                         setOpen(false)
                     }}
                     >

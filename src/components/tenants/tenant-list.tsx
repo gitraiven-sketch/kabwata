@@ -222,7 +222,7 @@ function EditTenantForm({ tenant, onTenantUpdated, properties }: { tenant: Tenan
     
     const { id, ...updateData } = {
         ...editedTenant,
-        phone: editedTenant.phone.startsWith('+260') ? editedTenant.phone : `+260${editedTenant.phone}`
+        phone: editedTenant.phone.startsWith('+260') ? editedTenant.phone : `+260${editedTenant.phone.replace(/^0/, '')}`
     };
 
     updateDoc(tenantRef, {
@@ -338,7 +338,7 @@ function AddTenantForm({ onTenantAdded, properties }: { onTenantAdded: () => voi
 
     setIsLoading(true);
     const formData = new FormData(event.currentTarget);
-    const phone = formData.get('phone') as string;
+    const phone = (formData.get('phone') as string).replace(/^0/, '');
     const newTenantData = {
         name: formData.get('name') as string,
         phone: `+260${phone}`,
@@ -506,6 +506,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     
     const unsubTenants = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
         const propertyMap = new Map<string, Property>();
+        // We can get properties from the state now that it's updated by its own listener
         const propsSnapshot = await getDocs(propertiesQuery);
         propsSnapshot.forEach(doc => {
             propertyMap.set(doc.id, { id: doc.id, ...doc.data() } as Property);
