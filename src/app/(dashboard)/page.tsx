@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { User, Loader2 } from 'lucide-react';
+import { User, Loader2, PartyPopper } from 'lucide-react';
 import { useFirestore } from '@/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -57,6 +57,20 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <Card className="bg-gradient-to-r from-primary/10 to-accent/10">
+        <CardHeader>
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <PartyPopper className="h-6 w-6" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl">Deployment Successful!</CardTitle>
+              <CardDescription>Your App Hosting setup is working correctly.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+      
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
