@@ -1,0 +1,22 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Rules for tenants collection
+    match /tenants/{tenantId} {
+      allow read, create, update, delete: if isSignedIn();
+    }
+
+    // Rules for payments subcollection
+    match /tenants/{tenantId}/payments/{paymentId} {
+      allow read, create: if isSignedIn();
+    }
+  }
+}

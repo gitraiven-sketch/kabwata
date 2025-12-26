@@ -1,0 +1,126 @@
+
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant",
+      "description": "A tenant in the shopping complex.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the tenant."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the tenant."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the tenant."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The phone number of the tenant."
+        },
+        "propertyId": {
+          "type": "string",
+          "description": "The ID of the property the tenant is renting."
+        },
+        "rentAmount": {
+          "type": "number",
+          "description": "The amount of rent due."
+        },
+        "paymentDay": {
+          "type": "number",
+          "description": "The day of the month rent is due."
+        },
+        "leaseStartDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The start date of the lease."
+        },
+        "leaseEndDate": {
+          "type": "string",
+          "format": "date",
+          "description": "The end date of the lease."
+        }
+      },
+      "required": [
+        "name",
+        "email",
+        "phone",
+        "propertyId",
+        "rentAmount",
+        "paymentDay",
+        "leaseStartDate",
+        "leaseEndDate"
+      ]
+    },
+    "Property": {
+        "title": "Property",
+        "description": "A shop in the shopping complex.",
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "description": "The unique identifier for the property."
+            },
+            "name": {
+                "type": "string"
+            },
+            "group": {
+                "type": "string"
+            },
+            "shopNumber": {
+                "type": "number"
+            },
+            "address": {
+                "type": "string"
+            },
+            "rentAmount": {
+                "type": "number"
+            }
+        }
+    },
+    "Payment": {
+        "title": "Payment",
+        "description": "A rent payment made by a tenant.",
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string"
+            },
+            "tenantId": {
+                "type": "string"
+            },
+            "amount": {
+                "type": "number"
+            },
+            "date": {
+                "type": "string",
+                "format": "date-time"
+            }
+        }
+    }
+  },
+  "auth": {
+    "providers": [
+      "email-password"
+    ]
+  },
+  "firestore": {
+    "/tenants/{tenantId}": {
+      "schema": {
+        "$ref": "#/entities/Tenant"
+      },
+      "description": "Collection of all tenants."
+    },
+    "/tenants/{tenantId}/payments/{paymentId}": {
+        "schema": {
+            "$ref": "#/entities/Payment"
+        },
+        "description": "Sub-collection of payments for a specific tenant."
+    }
+  }
+}
