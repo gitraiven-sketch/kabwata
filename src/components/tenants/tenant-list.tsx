@@ -109,7 +109,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         phone: `+260${phone}`,
         propertyId: property.id,
         rentAmount: 0,
-        paymentDay: property.paymentDay,
+        paymentDay: property.paymentDay || 1,
         leaseStartDate: formData.get('leaseStartDate') as string,
         lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(),
     };
@@ -254,10 +254,25 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
   React.useEffect(() => {
     if (!firestore || !auth) {
-        setIsLoading(false);
-        return;
+      setIsLoading(false);
+      return;
     }
     
+    // Only fetch tenants if we have already tried to fetch properties
+    // and the properties fetch isn't running for the first time.
+    if (!isLoading && properties.length === 0) {
+      // If there are no properties, there can be no tenants with properties,
+      // so we can stop loading.
+      setTenants([]);
+      setIsLoading(false);
+      return;
+    }
+     if (isLoading && properties.length === 0) {
+      // Still waiting for properties to load, do nothing.
+      return;
+    }
+
+
     const tenantsQuery = query(collection(firestore, 'tenants'));
     const unsubTenants = onSnapshot(tenantsQuery, async (tenantsSnapshot) => {
         const propertyMap = new Map<string, Property>();
@@ -311,7 +326,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     });
 
     return () => unsubTenants();
-  }, [firestore, auth, properties]);
+  }, [firestore, auth, properties, isLoading]);
 
 
   const filteredTenants = tenants.filter(
