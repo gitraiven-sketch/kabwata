@@ -294,9 +294,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                      <p className="text-sm text-muted-foreground">{property.address}</p>
                   </CardContent>
                   <CardFooter>
-                    <p className="text-lg font-semibold">K{property.rentAmount.toLocaleString()}
-                      <span className="text-sm font-normal text-muted-foreground">/month</span>
-                    </p>
+                    <p className="text-lg font-semibold">K{property.rentAmount.toLocaleString()}</p>
                   </CardFooter>
                 </Card>
               ))}
