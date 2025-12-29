@@ -44,7 +44,6 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
       const result = await generateSingleRentReminder({
         tenantName: tenant.name,
         propertyName: tenant.property.name,
-        rentAmount: tenant.rentAmount,
         dueDate: format(tenant.dueDate, 'do MMMM, yyyy'),
         phoneNumber: tenant.phone,
         dueDateProximity: proximity,
@@ -80,8 +79,7 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
           <CardDescription className="flex items-center gap-1 text-xs"><Building className="h-3 w-3" />{tenant.property.name}</CardDescription>
         </div>
          <div className="text-right">
-            <div className="font-bold">K{tenant.rentAmount.toLocaleString()}</div>
-            <div className="text-xs text-muted-foreground">{format(tenant.dueDate, 'do MMM')}</div>
+            <div className="text-sm text-muted-foreground">{format(tenant.dueDate, 'do MMM')}</div>
         </div>
       </CardHeader>
        <CardContent className="flex-grow space-y-2">
