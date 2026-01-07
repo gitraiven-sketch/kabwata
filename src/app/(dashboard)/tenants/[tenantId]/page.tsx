@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
@@ -39,6 +39,7 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
 
     // Ensure cycle doesn't start before the lease
     if (cycleStart < leaseStart) {
+        // If the calculated cycle start is before the lease, the first cycle start IS the lease start date
         cycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), leaseStart.getDate());
     }
 
@@ -180,14 +181,14 @@ export default function TenantDetailPage() {
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    // To revert, we set the lastPaidDate to a date within the *previous* payment cycle.
-    // A simple way is to go back a month from the current due date.
-    const dueDate = tenantDetails?.dueDate || new Date();
-    const previousCycleDate = new Date(dueDate.getFullYear(), dueDate.getMonth() - 1, tenantDetails.paymentDay);
-
-
+    // The most reliable way to revert is to set the lastPaidDate to a date
+    // guaranteed to be before any possible payment cycle.
+    // Setting it to a day before the lease started is a robust way to do this.
+    const leaseStartDate = new Date(tenantDetails.leaseStartDate);
+    const revertDate = new Date(leaseStartDate.getTime() - 24 * 60 * 60 * 1000); // One day before lease start
+    
     try {
-        await updateDoc(tenantRef, { lastPaidDate: previousCycleDate.toISOString() });
+        await updateDoc(tenantRef, { lastPaidDate: revertDate.toISOString() });
         toast({
             title: 'Payment Reverted',
             description: `Reverted last payment for ${tenantDetails.name}.`,
@@ -196,7 +197,7 @@ export default function TenantDetailPage() {
          const permissionError = new FirestorePermissionError({
             path: `tenants/${tenantId}`,
             operation: 'update',
-            requestResourceData: { lastPaidDate: previousCycleDate.toISOString() },
+            requestResourceData: { lastPaidDate: revertDate.toISOString() },
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
