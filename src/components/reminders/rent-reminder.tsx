@@ -20,7 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { TenantWithDetails } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { generateSingleRentReminder } from '@/ai/flows/automated-rent-reminders';
-import { generateAdminOverdueNotice } from '@/ai/flows/admin-overdue-notice';
+import { sendAdminOverdueNotice } from '@/ai/flows/send-admin-notice';
 import { format, formatDistanceToNowStrict } from 'date-fns';
 import { Loader2, Wand2, User, Building, AlertTriangle, Mail } from 'lucide-react';
 
@@ -105,8 +105,7 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
 }
 
 function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDetails[] }) {
-  const [emailContent, setEmailContent] = React.useState<{ subject: string, body: string } | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isSending, setIsSending] = React.useState(false);
   const { toast } = useToast();
   const adminEmail = "kfikreselassie@gmail.com";
 
@@ -114,9 +113,8 @@ function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDe
     return null;
   }
 
-  const handleGenerateEmail = async () => {
-    setIsLoading(true);
-    setEmailContent(null);
+  const handleSendEmail = async () => {
+    setIsSending(true);
     try {
       const overdueDetails = overdueTenants.map(t => ({
         tenantName: t.name,
@@ -125,33 +123,27 @@ function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDe
         daysOverdue: formatDistanceToNowStrict(t.dueDate, { addSuffix: true }),
       }));
 
-      const result = await generateAdminOverdueNotice({
+      await sendAdminOverdueNotice({
+        to: adminEmail,
         overdueTenants: overdueDetails,
         totalOverdue: overdueTenants.length,
       });
       
-      setEmailContent(result);
       toast({
-        title: "Admin Email Generated",
-        description: "Overdue payment summary email is ready to be sent.",
+        title: "Admin Notice Sent",
+        description: "The overdue payment summary has been sent to the administrator.",
       });
 
     } catch (error) {
-      console.error("Failed to generate admin email:", error);
+      console.error("Failed to send admin email:", error);
       toast({
         variant: "destructive",
-        title: "Generation Failed",
-        description: "Could not generate the admin notification email.",
+        title: "Send Failed",
+        description: "Could not send the admin notification email.",
       });
     } finally {
-      setIsLoading(false);
+      setIsSending(false);
     }
-  };
-
-  const handleSendEmail = () => {
-    if (!emailContent) return;
-    const mailtoLink = `mailto:${adminEmail}?subject=${encodeURIComponent(emailContent.subject)}&body=${encodeURIComponent(emailContent.body)}`;
-    window.open(mailtoLink, '_blank');
   };
 
 
@@ -163,31 +155,15 @@ function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDe
                 <div>
                     <CardTitle className="text-destructive">Overdue Payment Alert</CardTitle>
                     <CardDescription>
-                        Generate and send an email summary of overdue tenants to the administrator.
+                       There are {overdueTenants.length} overdue tenants. Click below to send a summary email to the administrator.
                     </CardDescription>
                 </div>
             </div>
         </CardHeader>
-        {emailContent && (
-             <CardContent className="space-y-4">
-                 <div className="space-y-2 rounded-md border bg-background p-4">
-                    <h4 className="font-medium">Email Subject:</h4>
-                    <p className="text-sm text-muted-foreground">{emailContent.subject}</p>
-                 </div>
-                 <div className="space-y-2 rounded-md border bg-background p-4">
-                    <h4 className="font-medium">Email Body:</h4>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{emailContent.body}</p>
-                </div>
-            </CardContent>
-        )}
-        <CardFooter className="flex justify-between">
-            <Button size="sm" variant="outline" onClick={handleGenerateEmail} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                {emailContent ? 'Regenerate Email' : 'Generate Admin Email'}
-            </Button>
-            <Button size="sm" onClick={handleSendEmail} disabled={!emailContent || isLoading}>
-                <Mail className="mr-2 h-4 w-4" />
-                Send via Email
+        <CardFooter className="flex justify-end">
+            <Button size="sm" onClick={handleSendEmail} disabled={isSending}>
+                {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                Send Summary to Admin
             </Button>
         </CardFooter>
     </Card>
