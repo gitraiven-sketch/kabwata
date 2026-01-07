@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
-import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
 import { Loader2, ArrowLeft, User, Building, Calendar, Phone, BadgeDollarSign, Check, X } from 'lucide-react';
@@ -25,8 +25,8 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
     const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(0); // Use epoch if never paid
     lastPaid.setHours(0, 0, 0, 0);
 
-    // Determine the start and end of the current payment cycle
-    let cycleStart, cycleEnd;
+    // Determine the start of the current payment cycle
+    let cycleStart;
     const paymentDay = tenant.paymentDay;
 
     if (today.getDate() >= paymentDay) {
@@ -42,10 +42,6 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
         cycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), leaseStart.getDate());
     }
 
-    cycleEnd = new Date(cycleStart.getFullYear(), cycleStart.getMonth() + 1, paymentDay - 1);
-    cycleEnd.setHours(23, 59, 59, 999);
-
-
     // Determine the due date for the current cycle
     const currentDueDate = new Date(cycleStart);
 
@@ -60,7 +56,7 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
         return { status: 'Paid', dueDate: nextDueDate };
     }
 
-    if (today >= currentDueDate) {
+    if (today.getTime() >= currentDueDate.getTime()) {
         return { status: 'Overdue', dueDate: currentDueDate };
     }
     
@@ -93,9 +89,8 @@ export default function TenantDetailPage() {
   const { toast } = useToast();
 
   const tenantId = params.tenantId as string;
-
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [property, setProperty] = useState<Property | null>(null);
+  
+  const [tenantDetails, setTenantDetails] = useState<TenantWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -103,30 +98,34 @@ export default function TenantDetailPage() {
     if (!firestore || !tenantId) return;
 
     const tenantRef = doc(firestore, 'tenants', tenantId);
-    const unsubscribeTenant = onSnapshot(tenantRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const tenantData = { id: docSnap.id, ...docSnap.data() } as Tenant;
-        setTenant(tenantData);
-        
-        // Now fetch the associated property
-        const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
-        const unsubscribeProperty = onSnapshot(propertyRef, (propSnap) => {
-            if(propSnap.exists()){
-                setProperty({ id: propSnap.id, ...propSnap.data() } as Property);
+
+    const unsubscribe = onSnapshot(tenantRef, async (tenantSnap) => {
+        if (tenantSnap.exists()) {
+            const tenantData = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant;
+            
+            // Fetch the associated property
+            const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
+            const propSnap = await getDoc(propertyRef);
+
+            if (propSnap.exists()) {
+                const propertyData = { id: propSnap.id, ...propSnap.data() } as Property;
+                const { status, dueDate } = getPaymentStatus(tenantData);
+
+                setTenantDetails({
+                    ...tenantData,
+                    property: propertyData,
+                    paymentStatus: status,
+                    dueDate,
+                });
             } else {
-                console.warn(`Property with ID ${tenantData.propertyId} not found.`);
-                setProperty(null);
+                 console.warn(`Property with ID ${tenantData.propertyId} not found.`);
+                 setTenantDetails(null);
             }
-            setIsLoading(false);
-        });
-
-        return () => unsubscribeProperty();
-
-      } else {
-        console.error('Tenant not found');
+        } else {
+            console.error('Tenant not found');
+            setTenantDetails(null);
+        }
         setIsLoading(false);
-        setTenant(null);
-      }
     }, (error) => {
        const permissionError = new FirestorePermissionError({
             path: `tenants/${tenantId}`,
@@ -136,19 +135,9 @@ export default function TenantDetailPage() {
         setIsLoading(false);
     });
 
-    return () => unsubscribeTenant();
+    return () => unsubscribe();
   }, [firestore, tenantId, auth]);
-  
-  const tenantDetails: TenantWithDetails | null = useMemo(() => {
-    if (!tenant || !property) return null;
-    const { status, dueDate } = getPaymentStatus(tenant);
-    return {
-        ...tenant,
-        property,
-        paymentStatus: status,
-        dueDate,
-    }
-  }, [tenant, property]);
+
 
   const handleMarkAsPaid = async () => {
     if (!firestore || !tenantId || !tenantDetails) return;
@@ -186,7 +175,7 @@ export default function TenantDetailPage() {
   };
 
   const handleRevertPayment = async () => {
-    if (!firestore || !tenantId || !tenant) return;
+    if (!firestore || !tenantId || !tenantDetails) return;
 
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
@@ -194,14 +183,14 @@ export default function TenantDetailPage() {
     // To revert, we set the lastPaidDate to a date within the *previous* payment cycle.
     // A simple way is to go back a month from the current due date.
     const dueDate = tenantDetails?.dueDate || new Date();
-    const previousCycleDate = new Date(dueDate.getFullYear(), dueDate.getMonth() - 1, tenant.paymentDay);
+    const previousCycleDate = new Date(dueDate.getFullYear(), dueDate.getMonth() - 1, tenantDetails.paymentDay);
 
 
     try {
         await updateDoc(tenantRef, { lastPaidDate: previousCycleDate.toISOString() });
         toast({
             title: 'Payment Reverted',
-            description: `Reverted last payment for ${tenant.name}.`,
+            description: `Reverted last payment for ${tenantDetails.name}.`,
         });
     } catch(e) {
          const permissionError = new FirestorePermissionError({
