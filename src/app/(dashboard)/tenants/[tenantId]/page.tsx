@@ -67,10 +67,10 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
 
 function StatusBadge({ status }: { status: PaymentStatus }) {
   const variant = {
-    Paid: 'default',
+    Paid: 'success',
     Overdue: 'destructive',
-    Upcoming: 'secondary',
-  }[status] as 'default' | 'destructive' | 'secondary';
+    Upcoming: 'warning',
+  }[status] as 'success' | 'destructive' | 'warning';
 
   const Icon = {
     Paid: Check,
