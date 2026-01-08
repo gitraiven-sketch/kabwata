@@ -19,6 +19,17 @@ export type Property = {
   paymentDay: number;
 };
 
+export type Payment = {
+  id: string;
+  tenantId: string;
+  propertyId: string;
+  amount: number;
+  paymentDate: string; // ISO date string
+  recordedAt: string; // ISO date string
+  tenantName: string;
+  propertyName: string;
+}
+
 export type PaymentStatus = 'Paid' | 'Overdue' | 'Upcoming';
 
 export type TenantWithDetails = Tenant & {

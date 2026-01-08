@@ -76,6 +76,48 @@
             }
         },
         "required": ["name", "group", "shopNumber", "address", "paymentDay"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A record of a single payment made by a tenant.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the payment."
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "The ID of the tenant who made the payment."
+        },
+        "propertyId": {
+          "type": "string",
+          "description": "The ID of the property for which the payment was made."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount paid."
+        },
+        "paymentDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date the payment was recorded for."
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the payment was recorded in the system."
+        },
+        "tenantName": {
+          "type": "string",
+          "description": "The name of the tenant (denormalized)."
+        },
+        "propertyName": {
+          "type": "string",
+          "description": "The name of the property (denormalized)."
+        }
+      },
+      "required": ["tenantId", "propertyId", "amount", "paymentDate", "recordedAt", "tenantName", "propertyName"]
     }
   },
   "auth": {
@@ -95,6 +137,12 @@
             "$ref": "#/entities/Property"
         },
         "description": "Collection of all properties."
+    },
+    "/payments/{paymentId}": {
+      "schema": {
+        "$ref": "#/entities/Payment"
+      },
+      "description": "Collection of all payments for easy querying across all tenants."
     }
   }
 }

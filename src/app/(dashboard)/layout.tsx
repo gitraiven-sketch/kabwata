@@ -14,6 +14,7 @@ import {
   Users,
   Building,
   Bell,
+  History,
 } from 'lucide-react';
 import Link from 'next/link';
 import AuthGuard from '@/components/auth/auth-guard';
@@ -105,6 +106,17 @@ export default function DashboardLayout({
                     <Link href="/reminders">
                       <Bell />
                       <span>Reminders</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip={{ children: 'Payment History', side: 'right' }}
+                  >
+                    <Link href="/history">
+                      <History />
+                      <span>Payment History</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

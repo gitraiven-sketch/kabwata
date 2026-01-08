@@ -15,5 +15,11 @@ service cloud.firestore {
     match /properties/{propertyId} {
         allow read, create, update, delete: if isSignedIn();
     }
+
+    match /payments/{paymentId} {
+      allow read, create: if isSignedIn();
+      // Payments are immutable, so disallow updates and deletes.
+      allow update, delete: if false;
+    }
   }
 }
