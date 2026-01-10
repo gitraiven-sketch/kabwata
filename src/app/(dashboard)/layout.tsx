@@ -8,6 +8,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarInset,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
@@ -113,6 +114,7 @@ export default function DashboardLayout({
           </Sidebar>
           <SidebarInset className="flex-1">
             <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
+              <SidebarTrigger className="md:hidden" />
               <div className="relative flex-1">
                  {/* Search bar can be added here if needed globally */}
               </div>
