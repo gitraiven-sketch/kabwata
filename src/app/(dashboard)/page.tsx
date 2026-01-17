@@ -1,3 +1,4 @@
+
 'use client';
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
@@ -124,7 +125,9 @@ export default function DashboardPage() {
                         K{tenant.rentAmount.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatDistanceToNow(tenant.dueDate, { addSuffix: true })}
+                        {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                          : 'N/A'}
                       </TableCell>
                     </TableRow>
                   ))
@@ -179,7 +182,9 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>{tenant.property.name}</TableCell>
                       <TableCell className="text-right">
-                        {formatDistanceToNow(tenant.dueDate, { addSuffix: true })}
+                         {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                          : 'N/A'}
                       </TableCell>
                     </TableRow>
                   ))

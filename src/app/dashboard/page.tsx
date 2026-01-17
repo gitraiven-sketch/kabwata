@@ -1,3 +1,4 @@
+
 'use client';
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
@@ -101,7 +102,7 @@ export default function DashboardPage() {
                           </Avatar>
                           <div>
                             <div className="font-medium">{tenant.name}</div>
-                            <div className="text-xs text-muted-foreground">{tenant.email}</div>
+                            <div className="text-xs text-muted-foreground">{tenant.phone}</div>
                           </div>
                         </div>
                       </TableCell>
@@ -110,7 +111,9 @@ export default function DashboardPage() {
                         K{tenant.rentAmount.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatDistanceToNow(tenant.dueDate, { addSuffix: true })}
+                        {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                          : 'N/A'}
                       </TableCell>
                     </TableRow>
                   ))
@@ -159,13 +162,15 @@ export default function DashboardPage() {
                             </Avatar>
                             <div>
                                 <div className="font-medium">{tenant.name}</div>
-                                <div className="text-xs text-muted-foreground">{tenant.email}</div>
+                                <div className="text-xs text-muted-foreground">{tenant.phone}</div>
                             </div>
                         </div>
                       </TableCell>
                       <TableCell>{tenant.property.name}</TableCell>
                       <TableCell className="text-right">
-                        {formatDistanceToNow(tenant.dueDate, { addSuffix: true })}
+                        {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                          : 'N/A'}
                       </TableCell>
                     </TableRow>
                   ))
