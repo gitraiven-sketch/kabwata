@@ -276,7 +276,11 @@ export default function TenantDetailPage() {
                         <Calendar className="h-6 w-6 text-muted-foreground" />
                         <div>
                             <div className="font-semibold">Due Date</div>
-                            <div className="text-muted-foreground">{format(tenantDetails.dueDate, 'do MMMM, yyyy')}</div>
+                            <div className="text-muted-foreground">
+                                {tenantDetails.dueDate instanceof Date && !isNaN(tenantDetails.dueDate.getTime())
+                                    ? format(tenantDetails.dueDate, 'do MMMM, yyyy')
+                                    : 'N/A'}
+                            </div>
                         </div>
                     </div>
                      <div className="flex items-start gap-3 rounded-lg border p-4">

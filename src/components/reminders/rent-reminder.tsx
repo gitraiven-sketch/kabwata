@@ -44,7 +44,7 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
       const result = await generateSingleRentReminder({
         tenantName: tenant.name,
         propertyName: tenant.property.name,
-        dueDate: format(tenant.dueDate, 'do MMMM, yyyy'),
+        dueDate: tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime()) ? format(tenant.dueDate, 'do MMMM, yyyy') : 'N/A',
         phoneNumber: tenant.phone,
         dueDateProximity: proximity,
       });
@@ -79,7 +79,11 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
           <CardDescription className="flex items-center gap-1 text-xs"><Building className="h-3 w-3" />{tenant.property.name}</CardDescription>
         </div>
          <div className="text-right">
-            <div className="text-sm text-muted-foreground">{format(tenant.dueDate, 'do MMM')}</div>
+            <div className="text-sm text-muted-foreground">
+                {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                    ? format(tenant.dueDate, 'do MMM')
+                    : 'N/A'}
+            </div>
         </div>
       </CardHeader>
        <CardContent className="flex-grow space-y-2">
@@ -120,7 +124,7 @@ function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDe
         tenantName: t.name,
         propertyName: t.property.name,
         rentAmount: t.rentAmount,
-        daysOverdue: formatDistanceToNowStrict(t.dueDate, { addSuffix: true }),
+        daysOverdue: t.dueDate instanceof Date && !isNaN(t.dueDate.getTime()) ? formatDistanceToNowStrict(t.dueDate, { addSuffix: true }) : 'N/A',
       }));
 
       await sendAdminOverdueNotice({

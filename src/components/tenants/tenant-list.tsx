@@ -496,7 +496,11 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     </div>
                                 </TableCell>
                                 <TableCell>{tenant.property.name}</TableCell>
-                                <TableCell>{format(tenant.dueDate, 'do MMMM')}</TableCell>
+                                <TableCell>
+                                    {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                                        ? format(tenant.dueDate, 'do MMMM')
+                                        : 'N/A'}
+                                </TableCell>
                                 <TableCell>
                                     <StatusBadge status={tenant.paymentStatus} />
                                 </TableCell>
@@ -530,7 +534,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all associated data.
+                                                            This action cannot be undone. This will permanently delete &lt;strong&gt;{tenant.name}&lt;/strong&gt; and all associated data.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
