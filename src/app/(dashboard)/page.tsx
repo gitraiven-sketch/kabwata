@@ -1,4 +1,3 @@
-
 'use client';
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
@@ -20,40 +19,62 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Loader2, PartyPopper } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import type { TenantWithDetails } from '@/lib/types';
-import { getTenantsWithDetails } from '@/lib/data-helpers';
+import type { Tenant, Property, TenantWithDetails } from '@/lib/types';
+import { getPaymentStatus } from '@/lib/data-helpers';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardPage() {
-  const [overdueTenants, setOverdueTenants] = useState<TenantWithDetails[]>([]);
-  const [upcomingPayments, setUpcomingPayments] = useState<TenantWithDetails[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const firestore = useFirestore();
 
+  const [overdueTenants, setOverdueTenants] = useState<TenantWithDetails[]>([]);
+  const [upcomingPayments, setUpcomingPayments] = useState<TenantWithDetails[]>([]);
+
   useEffect(() => {
     if (!firestore) return;
-    
-    // We can use the existing helper, but it needs to be adapted for client-side use
-    // For now, let's just listen to tenants and update status.
-    const tenantsRef = collection(firestore, 'tenants');
-    const unsubscribe = onSnapshot(tenantsRef, async () => {
-      // Re-fetch all data when tenants change. This is inefficient but will work for now.
-      // A more optimized approach would listen to payments and properties as well.
-      try {
-        const data = await getTenantsWithDetails();
-        setOverdueTenants(data.filter(t => t.paymentStatus === 'Overdue'));
-        setUpcomingPayments(data.filter(t => t.paymentStatus === 'Upcoming').sort((a,b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0,5));
-      } catch (e) {
-        console.error("Error fetching tenant details for dashboard:", e);
-      } finally {
-        setIsLoading(false);
-      }
+
+    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
+      const tenantData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
+      setTenants(tenantData);
+      setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
+      const propsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+      setProperties(propsData);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubTenants();
+      unsubProps();
+    };
   }, [firestore]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const propertyMap = new Map(properties.map(p => [p.id, p]));
+    const allTenantsWithDetails: TenantWithDetails[] = tenants.map(tenant => {
+      const property = propertyMap.get(tenant.propertyId);
+      const { status, dueDate } = getPaymentStatus(tenant);
+
+      return {
+        ...tenant,
+        property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
+        paymentStatus: status,
+        dueDate,
+      };
+    });
+
+    setOverdueTenants(allTenantsWithDetails.filter(t => t.paymentStatus === 'Overdue'));
+    setUpcomingPayments(allTenantsWithDetails.filter(t => t.paymentStatus === 'Upcoming').sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 5));
+
+  }, [tenants, properties, isLoading]);
 
 
   return (

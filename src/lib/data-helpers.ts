@@ -1,4 +1,3 @@
-
 // This file is now marked for client-side execution,
 // but can be used on the server as well.
 'use client'; 
@@ -9,7 +8,7 @@ import type { Tenant, Property, TenantWithDetails, PaymentStatus } from './types
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 
-function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Date } {
+export function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Date } {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -19,8 +18,8 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
     const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(0); // Use epoch if never paid
     lastPaid.setHours(0, 0, 0, 0);
 
-    // Determine the start and end of the current payment cycle
-    let cycleStart, cycleEnd;
+    // Determine the start of the current payment cycle
+    let cycleStart;
     const paymentDay = tenant.paymentDay;
 
     if (today.getDate() >= paymentDay) {
@@ -35,11 +34,7 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
     if (cycleStart < leaseStart) {
         cycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), leaseStart.getDate());
     }
-
-    cycleEnd = new Date(cycleStart.getFullYear(), cycleStart.getMonth() + 1, paymentDay - 1);
-    cycleEnd.setHours(23, 59, 59, 999);
-
-
+    
     // Determine the due date for the current cycle
     const currentDueDate = new Date(cycleStart);
 
@@ -54,7 +49,7 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
         return { status: 'Paid', dueDate: nextDueDate };
     }
 
-    if (today >= currentDueDate) {
+    if (today.getTime() >= currentDueDate.getTime()) {
         return { status: 'Overdue', dueDate: currentDueDate };
     }
     
@@ -87,24 +82,26 @@ export async function getTenantsWithDetails(): Promise<TenantWithDetails[]> {
 
         const tenantsWithDetails: TenantWithDetails[] = tenantList.map(tenant => {
             const property = propertyMap.get(tenant.propertyId);
+            const { status, dueDate } = getPaymentStatus(tenant);
+
             if (!property) {
                 // This can happen if a property is deleted but the tenant still references it.
                 // We'll create a placeholder property to avoid crashing.
                 return {
                     ...tenant,
                     property: { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
-                    paymentStatus: 'Upcoming',
-                    dueDate: new Date(),
+                    paymentStatus: status,
+                    dueDate: dueDate,
                 };
             }
-            const { status, dueDate } = getPaymentStatus(tenant);
+            
             return {
                 ...tenant,
                 property: property,
                 paymentStatus: status,
                 dueDate,
             };
-        }).filter(t => t.property.name !== 'Unknown Property'); // Filter out tenants with missing properties for safety
+        });
         
         return tenantsWithDetails;
 

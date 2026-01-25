@@ -63,10 +63,10 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import Link from 'next/link';
-import { getTenantsWithDetails } from '@/lib/data-helpers';
+import { getPaymentStatus } from '@/lib/data-helpers';
 
 
-function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: TenantWithDetails[] }) {
+function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: Tenant[] }) {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -362,28 +362,27 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
 export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDetails[] }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const firestore = useFirestore();
-  const [tenants, setTenants] = React.useState<TenantWithDetails[]>(initialTenants);
-  const [properties, setProperties] = React.useState<Property[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
   const { toast } = useToast();
+
+  const [tenants, setTenants] = React.useState<Tenant[]>([]);
+  const [properties, setProperties] = React.useState<Property[]>([]);
+  const [tenantsWithDetails, setTenantsWithDetails] = React.useState<TenantWithDetails[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  
 
   React.useEffect(() => {
     if (!firestore) return;
 
-    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), async () => {
-      try {
-        const tenantDetails = await getTenantsWithDetails();
-        setTenants(tenantDetails);
-      } catch (error) {
-        console.error("Failed to fetch tenant details:", error);
-      } finally {
-        setIsLoading(false);
-      }
+    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
+      const tenantData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
+      setTenants(tenantData);
+      setIsLoading(false);
     });
 
     const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
-        const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
-        setProperties(props);
+      const propsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+      setProperties(propsData);
+      setIsLoading(false);
     });
 
     return () => {
@@ -391,6 +390,28 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
       unsubProps();
     };
   }, [firestore]);
+
+
+  React.useEffect(() => {
+    if (isLoading) return;
+
+    const propertyMap = new Map(properties.map(p => [p.id, p]));
+    
+    const details: TenantWithDetails[] = tenants.map(tenant => {
+        const property = propertyMap.get(tenant.propertyId);
+        const { status, dueDate } = getPaymentStatus(tenant);
+        
+        return {
+            ...tenant,
+            property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
+            paymentStatus: status,
+            dueDate: dueDate,
+        };
+    });
+
+    setTenantsWithDetails(details);
+
+  }, [tenants, properties, isLoading]);
 
 
   const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
@@ -412,7 +433,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   }
 
 
-  const filteredTenants = tenants.filter(
+  const filteredTenants = tenantsWithDetails.filter(
     (tenant) =>
       tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tenant.property && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -534,7 +555,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete &lt;strong&gt;{tenant.name}&lt;/strong&gt; and all associated data.
+                                                            This action cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all associated data.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
