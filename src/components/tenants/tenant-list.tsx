@@ -362,6 +362,7 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
 export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDetails[] }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const firestore = useFirestore();
+  const auth = useAuth();
   const { toast } = useToast();
 
   const [tenants, setTenants] = React.useState<Tenant[]>([]);
@@ -414,22 +415,24 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   }, [tenants, properties, isLoading]);
 
 
-  const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
-    if (!firestore) return;
-    try {
-        await deleteDoc(doc(firestore, 'tenants', tenantId));
-        toast({
-            title: 'Tenant Deleted',
-            description: `${tenantName} has been successfully removed.`,
+  const handleDeleteTenant = (tenantId: string, tenantName: string) => {
+    if (!firestore || !auth) return;
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+    
+    deleteDoc(tenantRef)
+        .then(() => {
+            toast({
+                title: 'Tenant Deleted',
+                description: `${tenantName} has been successfully removed.`,
+            });
+        })
+        .catch((error) => {
+            const permissionError = new FirestorePermissionError({
+                path: tenantRef.path,
+                operation: 'delete',
+            }, auth);
+            errorEmitter.emit('permission-error', permissionError);
         });
-    } catch (error) {
-        console.error('Error deleting tenant:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Delete Failed',
-            description: 'Could not delete the tenant. You may not have the correct permissions.',
-        });
-    }
   }
 
 
