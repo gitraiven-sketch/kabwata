@@ -7,8 +7,14 @@
  * - RentReminderOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
+import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'zod';
+
+const ai = genkit({
+  plugins: [googleAI()],
+  model: 'googleai/gemini-2.5-flash',
+});
 
 const RentReminderInputSchema = z.object({
   tenantName: z.string().describe('The name of the tenant.'),

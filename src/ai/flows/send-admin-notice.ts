@@ -6,9 +6,15 @@
  * - SendAdminNoticeInput - The input type for the function.
  */
 
-import {ai} from '@/ai/genkit';
+import {genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'zod';
 import { generateAdminOverdueNotice, type AdminOverdueNoticeInput, type AdminOverdueNoticeOutput } from './admin-overdue-notice';
+
+const ai = genkit({
+  plugins: [googleAI()],
+  model: 'googleai/gemini-2.5-flash',
+});
 
 
 const SendAdminNoticeInputSchema = z.object({
