@@ -252,19 +252,37 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+
+  // This function ensures the date is in 'yyyy-MM-dd' format for the input
+  const getSafeLeaseStart = (leaseDate: string | undefined) => {
+    if (leaseDate) {
+      try {
+        // `parseISO` is more robust for different date string formats
+        const parsedDate = parseISO(leaseDate);
+        if (!isNaN(parsedDate.getTime())) {
+          return format(parsedDate, 'yyyy-MM-dd');
+        }
+      } catch (e) {
+         // Invalid date format, fall through to default
+      }
+    }
+    // Default to today if missing or invalid
+    return format(new Date(), 'yyyy-MM-dd');
+  };
   
   const [formData, setFormData] = React.useState({
-    name: tenant.name,
-    phone: tenant.phone.startsWith('+260') ? tenant.phone.substring(4) : tenant.phone,
-    leaseStartDate: tenant.leaseStartDate,
+    name: tenant.name || '',
+    phone: tenant.phone ? tenant.phone.replace('+260', '') : '',
+    leaseStartDate: getSafeLeaseStart(tenant.leaseStartDate),
   });
 
   React.useEffect(() => {
+    // Reset form state when the dialog is opened
     if (open) {
       setFormData({
-        name: tenant.name,
-        phone: tenant.phone.startsWith('+260') ? tenant.phone.substring(4) : tenant.phone,
-        leaseStartDate: tenant.leaseStartDate,
+        name: tenant.name || '',
+        phone: tenant.phone ? tenant.phone.replace('+260', '') : '',
+        leaseStartDate: getSafeLeaseStart(tenant.leaseStartDate),
       });
     }
   }, [open, tenant]);
@@ -276,14 +294,14 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!firestore || !auth) return;
+    if (!firestore || !auth || !tenant.id) return;
     setIsLoading(true);
 
     const tenantRef = doc(firestore, 'tenants', tenant.id);
     const dataToUpdate = {
       name: formData.name,
       phone: `+260${formData.phone}`,
-      leaseStartDate: formData.leaseStartDate,
+      leaseStartDate: formData.leaseStartDate, // Should be 'yyyy-MM-dd' string from form
     };
 
     try {
@@ -318,7 +336,7 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Tenant</DialogTitle>
-            <DialogDescription>Update the details for {tenant.name}.</DialogDescription>
+            <DialogDescription>Update the details for {tenant.name || 'this tenant'}.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -434,6 +452,37 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     setIsLoading(false);
 
   }, [tenants, properties, isLoading]);
+
+
+ const handleDeleteTenant = async (tenantId: string) => {
+    if (!firestore || !auth || !tenantId) return;
+
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    try {
+        await deleteDoc(tenantRef);
+        toast({
+            title: "Tenant Deleted",
+            description: "The tenant has been permanently removed.",
+        });
+    } catch (error) {
+        // This is a more robust way to handle permission errors
+        const permissionError = new FirestorePermissionError({
+            path: tenantRef.path,
+            operation: 'delete',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+
+        // Fallback for other types of errors
+        if (!(error instanceof FirestorePermissionError)) {
+             toast({
+                variant: 'destructive',
+                title: "Delete Failed",
+                description: "Could not delete the tenant. They may have related payment records.",
+            });
+        }
+    }
+  };
 
 
   const handleArchiveTenant = (tenantId: string, tenantName: string) => {
