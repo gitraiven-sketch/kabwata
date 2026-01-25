@@ -377,13 +377,17 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
       const tenantData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
       setTenants(tenantData);
+    }, (error) => {
+      console.error("Error fetching tenants:", error);
       setIsLoading(false);
     });
 
     const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
       const propsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
       setProperties(propsData);
-      setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching properties:", error);
+        setIsLoading(false);
     });
 
     return () => {
@@ -394,7 +398,12 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
 
   React.useEffect(() => {
-    if (isLoading) return;
+    if (tenants.length === 0 || properties.length === 0) {
+        // If either tenants or properties are not loaded, we might not be ready.
+        // If we have loaded but there are none, we should stop loading.
+        if (!isLoading) setIsLoading(false);
+        return;
+    };
 
     const propertyMap = new Map(properties.map(p => [p.id, p]));
     
@@ -411,12 +420,22 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     });
 
     setTenantsWithDetails(details);
+    setIsLoading(false);
 
-  }, [tenants, properties, isLoading]);
+  }, [tenants, properties]);
 
 
   const handleDeleteTenant = (tenantId: string, tenantName: string) => {
     if (!firestore || !auth) return;
+    if (!tenantId) {
+        console.error("handleDeleteTenant called with empty tenantId");
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Cannot delete tenant without a valid ID.",
+        });
+        return;
+    }
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
     deleteDoc(tenantRef)
