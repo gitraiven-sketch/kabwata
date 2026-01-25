@@ -8,7 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const RentReminderInputSchema = z.object({
   tenantName: z.string().describe('The name of the tenant.'),

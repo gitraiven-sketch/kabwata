@@ -7,7 +7,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 import { generateAdminOverdueNotice, type AdminOverdueNoticeInput, type AdminOverdueNoticeOutput } from './admin-overdue-notice';
 
 
