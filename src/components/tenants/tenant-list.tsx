@@ -379,7 +379,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
       const tenantData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
-        .filter(tenant => !tenant.isArchived); // Filter out archived tenants
       setTenants(tenantData);
     }, (error) => {
       console.error("Error fetching tenants:", error);
@@ -410,6 +409,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     if (tenants.length === 0 && !isLoading) {
         // No tenants to process
         setTenantsWithDetails([]);
+        setIsLoading(false);
         return;
     }
 
@@ -437,7 +437,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
 
   const handleArchiveTenant = (tenantId: string, tenantName: string) => {
-    if (!firestore || !auth) return;
+     if (!firestore || !auth) return;
     if (!tenantId) {
         console.error("handleArchiveTenant called with empty tenantId");
         toast({
@@ -469,8 +469,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
   const filteredTenants = tenantsWithDetails.filter(
     (tenant) =>
-      tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tenant.property && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      (tenant.name && tenant.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (tenant.property && tenant.property.name && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   
   const groupedTenants = React.useMemo(() => {
