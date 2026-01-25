@@ -76,7 +76,9 @@ export async function getTenantsWithDetails(): Promise<TenantWithDetails[]> {
         const properties = await getProperties();
         
         const tenantSnapshot = await getDocs(tenantsCollection);
-        const tenantList = tenantSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
+        const tenantList = tenantSnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
+            .filter(tenant => !tenant.isArchived); // Filter out archived tenants
         
         const propertyMap = new Map<string, Property>(properties.map(p => [p.id, p]));
 

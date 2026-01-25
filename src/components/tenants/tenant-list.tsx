@@ -19,6 +19,7 @@ import {
   Eye,
   Edit,
   Trash2,
+  Archive,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
@@ -139,6 +140,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         paymentDay: property.paymentDay || 1,
         leaseStartDate: formData.get('leaseStartDate') as string,
         lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(),
+        isArchived: false,
     };
 
     const tenantsRef = collection(firestore, 'tenants');
@@ -375,7 +377,9 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     if (!firestore) return;
 
     const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
-      const tenantData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
+      const tenantData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
+        .filter(tenant => !tenant.isArchived); // Filter out archived tenants
       setTenants(tenantData);
     }, (error) => {
       console.error("Error fetching tenants:", error);
@@ -398,16 +402,23 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
 
   React.useEffect(() => {
-    if (tenants.length === 0 || properties.length === 0) {
-        // If either tenants or properties are not loaded, we might not be ready.
-        // If we have loaded but there are none, we should stop loading.
-        if (!isLoading) setIsLoading(false);
+    if (properties.length === 0 && tenants.length > 0 && !isLoading) {
+        // Still waiting for properties
         return;
-    };
+    }
+    
+    if (tenants.length === 0 && !isLoading) {
+        // No tenants to process
+        setTenantsWithDetails([]);
+        return;
+    }
+
 
     const propertyMap = new Map(properties.map(p => [p.id, p]));
     
-    const details: TenantWithDetails[] = tenants.map(tenant => {
+    const details: TenantWithDetails[] = tenants
+    .filter(tenant => !tenant.isArchived) // Double-check filtering
+    .map(tenant => {
         const property = propertyMap.get(tenant.propertyId);
         const { status, dueDate } = getPaymentStatus(tenant);
         
@@ -422,33 +433,34 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     setTenantsWithDetails(details);
     setIsLoading(false);
 
-  }, [tenants, properties]);
+  }, [tenants, properties, isLoading]);
 
 
-  const handleDeleteTenant = (tenantId: string, tenantName: string) => {
+  const handleArchiveTenant = (tenantId: string, tenantName: string) => {
     if (!firestore || !auth) return;
     if (!tenantId) {
-        console.error("handleDeleteTenant called with empty tenantId");
+        console.error("handleArchiveTenant called with empty tenantId");
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Cannot delete tenant without a valid ID.",
+            description: "Cannot archive tenant without a valid ID.",
         });
         return;
     }
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    deleteDoc(tenantRef)
+    updateDoc(tenantRef, { isArchived: true })
         .then(() => {
             toast({
-                title: 'Tenant Deleted',
-                description: `${tenantName} has been successfully removed.`,
+                title: 'Tenant Archived',
+                description: `${tenantName} has been successfully archived.`,
             });
         })
         .catch((error) => {
             const permissionError = new FirestorePermissionError({
                 path: tenantRef.path,
-                operation: 'delete',
+                operation: 'update',
+                requestResourceData: { isArchived: true },
             }, auth);
             errorEmitter.emit('permission-error', permissionError);
         });
@@ -570,23 +582,23 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                         className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                                                         onSelect={(e) => e.preventDefault()}
                                                     >
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                                        <Archive className="mr-2 h-4 w-4" /> Archive
                                                     </DropdownMenuItem>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
                                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                         <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all associated data.
+                                                            This will archive <strong>{tenant.name}</strong>. They will be hidden from the app but their data will be preserved.
                                                         </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                         <AlertDialogAction
                                                             className="bg-destructive hover:bg-destructive/90"
-                                                            onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                                                            onClick={() => handleArchiveTenant(tenant.id, tenant.name)}
                                                         >
-                                                            Delete
+                                                            Archive
                                                         </AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>

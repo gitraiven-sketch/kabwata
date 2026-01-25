@@ -8,6 +8,7 @@ export type Tenant = {
   paymentDay: number; // Day of the month rent is due
   leaseStartDate: string;
   lastPaidDate?: string; // ISO date string
+  isArchived?: boolean;
 };
 
 export type Property = {

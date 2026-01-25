@@ -38,7 +38,9 @@ export default function DashboardPage() {
     if (!firestore) return;
 
     const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
-      const tenantData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tenant));
+      const tenantData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
+        .filter(tenant => !tenant.isArchived); // Filter out archived tenants
       setTenants(tenantData);
       setIsLoading(false);
     });
@@ -56,20 +58,22 @@ export default function DashboardPage() {
   }, [firestore]);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || properties.length === 0) return;
 
     const propertyMap = new Map(properties.map(p => [p.id, p]));
-    const allTenantsWithDetails: TenantWithDetails[] = tenants.map(tenant => {
-      const property = propertyMap.get(tenant.propertyId);
-      const { status, dueDate } = getPaymentStatus(tenant);
+    const allTenantsWithDetails: TenantWithDetails[] = tenants
+        .filter(tenant => !tenant.isArchived)
+        .map(tenant => {
+          const property = propertyMap.get(tenant.propertyId);
+          const { status, dueDate } = getPaymentStatus(tenant);
 
-      return {
-        ...tenant,
-        property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
-        paymentStatus: status,
-        dueDate,
-      };
-    });
+          return {
+            ...tenant,
+            property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
+            paymentStatus: status,
+            dueDate,
+          };
+        });
 
     setOverdueTenants(allTenantsWithDetails.filter(t => t.paymentStatus === 'Overdue'));
     setUpcomingPayments(allTenantsWithDetails.filter(t => t.paymentStatus === 'Upcoming').sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 5));

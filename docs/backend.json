@@ -39,6 +39,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The last date a payment was recorded for this tenant."
+        },
+        "isArchived": {
+            "type": "boolean",
+            "description": "Whether the tenant is archived and should be hidden from the UI."
         }
       },
       "required": [
