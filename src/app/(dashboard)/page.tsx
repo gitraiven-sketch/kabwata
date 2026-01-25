@@ -1,3 +1,4 @@
+
 'use client';
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
@@ -17,9 +18,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { User, Loader2, PartyPopper } from 'lucide-react';
+import { User, Loader2 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
-import { collection, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import type { Tenant, Property, TenantWithDetails } from '@/lib/types';
 import { getPaymentStatus } from '@/lib/data-helpers';
@@ -42,13 +43,12 @@ export default function DashboardPage() {
         .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
         .filter(tenant => !tenant.isArchived); // Filter out archived tenants
       setTenants(tenantData);
-      setIsLoading(false);
+      // Don't set loading to false here, wait for properties too
     });
 
     const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
       const propsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
       setProperties(propsData);
-      setIsLoading(false);
     });
 
     return () => {
@@ -58,45 +58,42 @@ export default function DashboardPage() {
   }, [firestore]);
 
   useEffect(() => {
-    if (isLoading || properties.length === 0) return;
+    if (properties.length > 0 || tenants.length > 0) {
+        const propertyMap = new Map(properties.map(p => [p.id, p]));
+        const allTenantsWithDetails: TenantWithDetails[] = tenants
+            .filter(tenant => !tenant.isArchived)
+            .map(tenant => {
+              const property = propertyMap.get(tenant.propertyId);
+              const { status, dueDate } = getPaymentStatus(tenant);
 
-    const propertyMap = new Map(properties.map(p => [p.id, p]));
-    const allTenantsWithDetails: TenantWithDetails[] = tenants
-        .filter(tenant => !tenant.isArchived)
-        .map(tenant => {
-          const property = propertyMap.get(tenant.propertyId);
-          const { status, dueDate } = getPaymentStatus(tenant);
+              return {
+                ...tenant,
+                property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
+                paymentStatus: status,
+                dueDate,
+              };
+            });
 
-          return {
-            ...tenant,
-            property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
-            paymentStatus: status,
-            dueDate,
-          };
-        });
+        setOverdueTenants(allTenantsWithDetails.filter(t => t.paymentStatus === 'Overdue'));
+        setUpcomingPayments(allTenantsWithDetails.filter(t => t.paymentStatus === 'Upcoming').sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 5));
+        setIsLoading(false);
+    } else {
+        // This handles the initial state where tenants/properties might be empty
+        // but we are not yet sure if it's because there are none or they are still loading.
+        // A timeout could prevent a flash of "no data" on slow connections.
+        const timer = setTimeout(() => {
+             if (tenants.length === 0 && properties.length === 0) {
+                setIsLoading(false);
+             }
+        }, 1500); // Wait 1.5s before deciding it's loaded and empty
+       return () => clearTimeout(timer);
+    }
 
-    setOverdueTenants(allTenantsWithDetails.filter(t => t.paymentStatus === 'Overdue'));
-    setUpcomingPayments(allTenantsWithDetails.filter(t => t.paymentStatus === 'Upcoming').sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime()).slice(0, 5));
-
-  }, [tenants, properties, isLoading]);
+  }, [tenants, properties]);
 
 
   return (
     <div className="space-y-6">
-      <Card className="bg-gradient-to-r from-primary/10 to-accent/10">
-        <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <PartyPopper className="h-6 w-6" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl">Deployment Successful!</CardTitle>
-              <CardDescription>Your App Hosting setup is working correctly.</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-      
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
@@ -106,7 +103,7 @@ export default function DashboardPage() {
 
       <DashboardClient />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid animate-in fade-in slide-in-from-bottom-4 delay-150 duration-500 ease-out lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Overdue Payments</CardTitle>
