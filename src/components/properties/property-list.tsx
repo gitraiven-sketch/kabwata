@@ -355,9 +355,9 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
     (property) => {
       const tenant = tenantsByPropertyId[property.id];
       const tenantName = tenant ? tenant.name : '';
-      const matchesSearch = property.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            property.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            tenantName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (property.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                            (property.address?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                            (tenantName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
       const matchesTab = activeTab === 'all' || property.group === activeTab;
       return matchesSearch && matchesTab;
