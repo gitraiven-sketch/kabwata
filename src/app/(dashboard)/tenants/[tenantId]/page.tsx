@@ -287,7 +287,11 @@ export default function TenantDetailPage() {
                         <Calendar className="h-6 w-6 text-muted-foreground" />
                         <div>
                             <div className="font-semibold">Lease Start Date</div>
-                            <div className="text-muted-foreground">{format(new Date(tenantDetails.leaseStartDate), 'do MMMM, yyyy')}</div>
+                            <div className="text-muted-foreground">
+                                {tenantDetails.leaseStartDate && !isNaN(new Date(tenantDetails.leaseStartDate).getTime())
+                                    ? format(new Date(tenantDetails.leaseStartDate), 'do MMMM, yyyy')
+                                    : 'N/A'}
+                            </div>
                         </div>
                     </div>
                 </div>
