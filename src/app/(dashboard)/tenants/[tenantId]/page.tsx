@@ -19,6 +19,12 @@ function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Dat
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // Guard against invalid or missing lease start date
+    if (!tenant.leaseStartDate || isNaN(new Date(tenant.leaseStartDate).getTime())) {
+        // Cannot determine status without a valid lease start.
+        return { status: 'Upcoming', dueDate: new Date(NaN) };
+    }
+
     const leaseStart = new Date(tenant.leaseStartDate);
     leaseStart.setHours(0, 0, 0, 0);
 

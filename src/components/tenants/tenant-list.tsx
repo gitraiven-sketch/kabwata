@@ -136,10 +136,9 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: 0,
+        rentAmount: Number(formData.get('rentAmount') as string),
         paymentDay: property.paymentDay || 1,
         leaseStartDate: formData.get('leaseStartDate') as string,
-        lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(),
         isArchived: false,
     };
 
@@ -215,6 +214,19 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
                 required 
                 className="col-span-3" 
               />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="rentAmount" className="text-right">
+                    Rent Amount
+                </Label>
+                <Input
+                    id="rentAmount"
+                    name="rentAmount"
+                    type="number"
+                    required
+                    className="col-span-3"
+                    placeholder="e.g. 2500"
+                />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="leaseStartDate" className="text-right">
