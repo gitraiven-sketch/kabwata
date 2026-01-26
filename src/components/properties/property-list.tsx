@@ -400,7 +400,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                 const isOverdue = dueDate ? new Date() > dueDate : false;
                 
                 return (
-                  <Card key={property.id} className="overflow-hidden flex flex-col">
+                  <Card key={property.id} className="overflow-hidden flex flex-col transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1">
                      <div className="relative flex h-40 w-full items-center justify-center bg-muted">
                       <Building className="h-16 w-16 text-muted-foreground/50" />
                        <div className="absolute top-2 right-2">
