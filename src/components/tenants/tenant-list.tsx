@@ -544,11 +544,22 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
   const groupOrder = ['Group A', 'Group B', 'Group C', 'Uncategorized'];
   
-  const defaultTab = groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+  const defaultTab = React.useMemo(() => {
+    return groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+  }, [groupedTenants]);
 
+  const [activeTab, setActiveTab] = React.useState(defaultTab);
+  
+  React.useEffect(() => {
+    const newDefaultTab = groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+    if (activeTab !== newDefaultTab && (!groupedTenants[activeTab] || groupedTenants[activeTab].length === 0)) {
+        setActiveTab(newDefaultTab);
+    }
+  }, [groupedTenants, activeTab, defaultTab]);
+  
   return (
-    <div className="space-y-4">
-        <div className="sticky top-[57px] z-10 space-y-4 bg-background pb-4 pt-2">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="sticky top-[64px] z-10 space-y-4 border-b bg-background/95 pb-4 pt-2 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-4">
                 <div className="relative w-full max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -561,28 +572,29 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                 </div>
                 <AddTenantForm properties={properties} tenants={tenants} onTenantAdded={() => { /* data re-fetches automatically */ }} />
             </div>
+             <TabsList>
+                {groupOrder.map(groupName => {
+                if(groupedTenants[groupName] && groupedTenants[groupName].length > 0) {
+                    return <TabsTrigger key={groupName} value={groupName}>{groupName}</TabsTrigger>
+                }
+                return null;
+                })}
+            </TabsList>
         </div>
 
-       {isLoading ? (
+       <div className="pt-6">
+        {isLoading ? (
             <div className="flex h-64 w-full items-center justify-center rounded-lg border">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         ) : tenants.length > 0 ? (
-            <Tabs defaultValue={defaultTab} className="w-full">
-                <TabsList>
-                    {groupOrder.map(groupName => {
-                    if(groupedTenants[groupName] && groupedTenants[groupName].length > 0) {
-                        return <TabsTrigger key={groupName} value={groupName}>{groupName}</TabsTrigger>
-                    }
-                    return null;
-                    })}
-                </TabsList>
+            <>
               {groupOrder.map(groupName => {
                   const tenantsInGroup = groupedTenants[groupName];
                   if (!tenantsInGroup || tenantsInGroup.length === 0) return null;
                   
                   return (
-                    <TabsContent value={groupName} key={groupName} className="mt-4">
+                    <TabsContent value={groupName} key={groupName} className="mt-0">
                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                             {tenantsInGroup.map((tenant) => (
                                 <Card
@@ -677,13 +689,14 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                     </TabsContent>
                   )
               })}
-            </Tabs>
+            </>
         ) : (
              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 py-24 text-center">
                 <h3 className="mt-4 text-lg font-semibold">No Tenants Found</h3>
                 <p className="mb-4 mt-2 text-sm text-muted-foreground">Try adjusting your search or add a new tenant to get started.</p>
             </div>
         )}
-    </div>
+       </div>
+    </Tabs>
   );
 }

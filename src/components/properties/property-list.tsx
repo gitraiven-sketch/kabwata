@@ -346,7 +346,9 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
 
   const tenantsByPropertyId = React.useMemo(() => {
     return tenants.reduce((acc, tenant) => {
-        acc[tenant.propertyId] = tenant;
+        if (tenant && tenant.propertyId) {
+            acc[tenant.propertyId] = tenant;
+        }
         return acc;
     }, {} as Record<string, Tenant>);
   }, [tenants]);
@@ -356,7 +358,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
       const tenant = tenantsByPropertyId[property.id];
       const tenantName = tenant ? tenant.name : '';
       const matchesSearch = (property.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-                            (property.address?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                            (property.shopNumber?.toString() || '').includes(searchTerm.toLowerCase()) ||
                             (tenantName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
       const matchesTab = activeTab === 'all' || property.group === activeTab;
@@ -365,13 +367,13 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
   ).sort((a, b) => a.shopNumber - b.shopNumber);
 
   return (
-    <div className="space-y-4">
-      <div className="sticky top-[57px] z-10 space-y-4 bg-background pb-4 pt-2">
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <div className="sticky top-[64px] z-10 space-y-4 border-b bg-background/95 pb-4 pt-2 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by shop or tenant..."
+              placeholder="Search shop, or tenant..."
               className="pl-9"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -379,20 +381,18 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
           </div>
           <PropertyForm onSave={() => { /* No-op, handled by snapshot */ }} />
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            {propertyGroups.map(group => (
-              <TabsTrigger key={group} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <TabsList>
+          {propertyGroups.map(group => (
+            <TabsTrigger key={group} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
+          ))}
+        </TabsList>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <div className="pt-6">
         <TabsContent value={activeTab} className="mt-0">
-           {isLoading ? (
+            {isLoading ? (
                 <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-           ) : filteredProperties.length > 0 ? (
+            ) : filteredProperties.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredProperties.map((property) => {
                 const tenant = tenantsByPropertyId[property.id];
@@ -461,7 +461,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
             </div>
           )}
         </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+    </Tabs>
   );
 }
