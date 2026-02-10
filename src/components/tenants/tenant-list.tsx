@@ -18,8 +18,10 @@ import {
   Loader2,
   Eye,
   Edit,
-  Trash2,
   Archive,
+  Building,
+  CalendarDays,
+  Phone,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
@@ -51,14 +53,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Input } from '@/components/ui/input';
 import { Button } from '../ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -588,51 +583,30 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                   
                   return (
                     <TabsContent value={groupName} key={groupName} className="mt-4">
-                        <Table>
-                            <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[300px]">Tenant</TableHead>
-                                <TableHead>Property</TableHead>
-                                <TableHead>Due Date</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                             {tenantsInGroup.map((tenant) => (
-                                <TableRow
+                                <Card
                                   key={tenant.id}
-                                  className={cn({
-                                    'bg-primary/10 hover:bg-primary/20 data-[state=selected]:bg-primary/20':
-                                      tenant.paymentStatus === 'Paid',
-                                    'bg-destructive/10 hover:bg-destructive/20 data-[state=selected]:bg-destructive/20':
-                                      tenant.paymentStatus === 'Overdue',
-                                    'bg-accent/10 hover:bg-accent/20 data-[state=selected]:bg-accent/20':
-                                      tenant.paymentStatus === 'Upcoming',
+                                  className={cn('border transition-all hover:shadow-lg', {
+                                    'bg-primary/5 border-primary/20': tenant.paymentStatus === 'Paid',
+                                    'bg-destructive/5 border-destructive/20': tenant.paymentStatus === 'Overdue',
+                                    'bg-accent/5 border-accent/20': tenant.paymentStatus === 'Upcoming',
                                   })}
                                 >
-                                <TableCell className="py-5 px-4">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-9 w-9">
-                                            <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                                <CardHeader className="flex-row items-start justify-between pb-4">
+                                    <div className="flex items-center gap-4">
+                                        <Avatar className="h-10 w-10">
+                                            <AvatarFallback><User className="h-5 w-5" /></AvatarFallback>
                                         </Avatar>
                                         <div>
-                                            <div className="font-medium">{tenant.name}</div>
-                                            <div className="text-xs text-muted-foreground">{tenant.phone}</div>
+                                            <CardTitle className="text-base">{tenant.name}</CardTitle>
+                                            <CardDescription className="flex items-center gap-1.5 pt-1 text-xs">
+                                                 <Phone className="h-3 w-3" />
+                                                 {tenant.phone}
+                                            </CardDescription>
                                         </div>
                                     </div>
-                                </TableCell>
-                                <TableCell className="py-5 px-4">{tenant.property.name}</TableCell>
-                                <TableCell className="py-5 px-4">
-                                    {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
-                                        ? format(tenant.dueDate, 'do MMMM')
-                                        : 'N/A'}
-                                </TableCell>
-                                <TableCell className="py-5 px-4">
-                                    <StatusBadge status={tenant.paymentStatus} />
-                                </TableCell>
-                                <TableCell className="text-right py-5 px-4">
-                                    {tenant.id ? (
+                                     {tenant.id ? (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -679,11 +653,27 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     ) : null}
-                                </TableCell>
-                                </TableRow>
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                     <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Building className="h-4 w-4 shrink-0" />
+                                        <span>{tenant.property.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <CalendarDays className="h-4 w-4 shrink-0" />
+                                        <span>
+                                            Due on {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                                                ? format(tenant.dueDate, 'do MMMM')
+                                                : 'N/A'}
+                                        </span>
+                                    </div>
+                                </CardContent>
+                                <CardFooter>
+                                     <StatusBadge status={tenant.paymentStatus} />
+                                </CardFooter>
+                                </Card>
                             ))}
-                            </TableBody>
-                        </Table>
+                        </div>
                     </TabsContent>
                   )
               })}
