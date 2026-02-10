@@ -65,6 +65,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import Link from 'next/link';
 import { getPaymentStatus } from '@/lib/data-helpers';
+import { cn } from '@/lib/utils';
 
 
 function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: Tenant[] }) {
@@ -599,8 +600,18 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                             </TableHeader>
                             <TableBody>
                             {tenantsInGroup.map((tenant) => (
-                                <TableRow key={tenant.id}>
-                                <TableCell>
+                                <TableRow
+                                  key={tenant.id}
+                                  className={cn({
+                                    'bg-primary/10 hover:bg-primary/20 data-[state=selected]:bg-primary/20':
+                                      tenant.paymentStatus === 'Paid',
+                                    'bg-destructive/10 hover:bg-destructive/20 data-[state=selected]:bg-destructive/20':
+                                      tenant.paymentStatus === 'Overdue',
+                                    'bg-accent/10 hover:bg-accent/20 data-[state=selected]:bg-accent/20':
+                                      tenant.paymentStatus === 'Upcoming',
+                                  })}
+                                >
+                                <TableCell className="py-5 px-4">
                                     <div className="flex items-center gap-3">
                                         <Avatar className="h-9 w-9">
                                             <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
@@ -611,16 +622,16 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                         </div>
                                     </div>
                                 </TableCell>
-                                <TableCell>{tenant.property.name}</TableCell>
-                                <TableCell>
+                                <TableCell className="py-5 px-4">{tenant.property.name}</TableCell>
+                                <TableCell className="py-5 px-4">
                                     {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
                                         ? format(tenant.dueDate, 'do MMMM')
                                         : 'N/A'}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="py-5 px-4">
                                     <StatusBadge status={tenant.paymentStatus} />
                                 </TableCell>
-                                <TableCell className="text-right">
+                                <TableCell className="text-right py-5 px-4">
                                     {tenant.id ? (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
