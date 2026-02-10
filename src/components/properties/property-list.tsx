@@ -448,7 +448,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                               <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{tenant.name}</div>
+                            <div className="font-medium text-base">{tenant.name}</div>
                             <div className={`text-xs ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
                                 {isOverdue ? 'Overdue' : 'Due'}{' '}
                                 {dueDate instanceof Date && !isNaN(dueDate.getTime())

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { DashboardClient } from '@/components/dashboard/dashboard-client';
@@ -137,7 +136,7 @@ export default function DashboardPage() {
                               <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{tenant.name}</div>
+                            <div className="font-medium text-base">{tenant.name}</div>
                             <div className="text-xs text-muted-foreground">{tenant.phone}</div>
                           </div>
                         </div>
@@ -197,7 +196,7 @@ export default function DashboardPage() {
                                 <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
                             </Avatar>
                             <div>
-                                <div className="font-medium">{tenant.name}</div>
+                                <div className="font-medium text-base">{tenant.name}</div>
                                 <div className="text-xs text-muted-foreground">{tenant.phone}</div>
                             </div>
                         </div>

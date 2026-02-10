@@ -631,7 +631,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <AvatarFallback><User className="h-5 w-5" /></AvatarFallback>
                                         </Avatar>
                                         <div>
-                                            <CardTitle className="text-base">{tenant.name}</CardTitle>
+                                            <CardTitle className="text-lg">{tenant.name}</CardTitle>
                                             <CardDescription className="flex items-center gap-1.5 pt-1 text-xs">
                                                  <Phone className="h-3 w-3" />
                                                  {tenant.phone}
