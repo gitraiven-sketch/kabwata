@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import AuthGuard from '@/components/auth/auth-guard';
 import { UserNav } from '@/components/auth/user-nav';
 import { cn } from '@/lib/utils';
+import { PageHeaderProvider, usePageHeader } from '@/context/page-header-context';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -37,18 +38,15 @@ const navItems = [
   { href: '/reminders', icon: Bell, label: 'Reminders' },
 ];
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function LayoutInternal({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-
+  const { actions } = usePageHeader();
+  const showActions = ['/tenants', '/properties'].includes(pathname);
+  
   return (
-    <AuthGuard>
       <div className="flex min-h-screen flex-col">
         {/* Top Header for all screen sizes */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <BuildingIcon className="h-7 w-7 text-primary" />
             <span className="hidden text-lg tracking-tight sm:inline">Kabwata</span>
@@ -75,7 +73,8 @@ export default function DashboardLayout({
             </ul>
           </nav>
           
-          <div className="ml-auto flex items-center">
+          <div className="ml-auto flex items-center gap-2">
+            {showActions && actions}
             <UserNav />
           </div>
         </header>
@@ -104,6 +103,20 @@ export default function DashboardLayout({
           </div>
         </nav>
       </div>
+  );
+}
+
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <AuthGuard>
+      <PageHeaderProvider>
+        <LayoutInternal>{children}</LayoutInternal>
+      </PageHeaderProvider>
     </AuthGuard>
   );
 }

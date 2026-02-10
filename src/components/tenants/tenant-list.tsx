@@ -61,9 +61,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import Link from 'next/link';
 import { getPaymentStatus } from '@/lib/data-helpers';
 import { cn } from '@/lib/utils';
+import { usePageHeader } from '@/context/page-header-context';
 
 
-function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: Tenant[] }) {
+function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenantAdded: () => void; properties: Property[], tenants: Tenant[], asIcon?: boolean }) {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
@@ -166,10 +167,16 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Tenant
-        </Button>
+        {asIcon ? (
+            <Button variant="ghost" size="icon" aria-label="Add Tenant">
+                <PlusCircle className="h-5 w-5" />
+            </Button>
+        ) : (
+            <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Tenant
+            </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
@@ -392,12 +399,37 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const { setActions } = usePageHeader();
 
   const [tenants, setTenants] = React.useState<Tenant[]>([]);
   const [properties, setProperties] = React.useState<Property[]>([]);
   const [tenantsWithDetails, setTenantsWithDetails] = React.useState<TenantWithDetails[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   
+  React.useEffect(() => {
+    setActions(
+      <>
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search tenants..."
+            className="h-9 pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <AddTenantForm
+          properties={properties}
+          tenants={tenants}
+          onTenantAdded={() => {}}
+          asIcon={true}
+        />
+      </>
+    );
+
+    return () => setActions(null);
+  }, [setActions, searchTerm, properties, tenants]);
+
 
   React.useEffect(() => {
     if (!firestore) return;
@@ -559,19 +591,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="sticky top-[64px] z-10 space-y-4 border-b bg-background/95 pb-4 pt-2 backdrop-blur-sm">
-            <div className="flex items-center justify-between gap-4">
-                <div className="relative w-full max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search tenants or properties..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                </div>
-                <AddTenantForm properties={properties} tenants={tenants} onTenantAdded={() => { /* data re-fetches automatically */ }} />
-            </div>
+        <div className="sticky top-[64px] z-10 border-b bg-background/95 py-2 backdrop-blur-sm">
              <TabsList>
                 {groupOrder.map(groupName => {
                 if(groupedTenants[groupName] && groupedTenants[groupName].length > 0) {

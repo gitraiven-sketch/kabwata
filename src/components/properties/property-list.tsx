@@ -39,6 +39,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { usePageHeader } from '@/context/page-header-context';
 
 function getDueDate(tenant: Tenant): Date {
     const today = new Date();
@@ -84,9 +85,11 @@ function getDueDate(tenant: Tenant): Date {
 function PropertyForm({
   property,
   onSave,
+  asIcon
 }: {
   property?: Property;
   onSave: () => void;
+  asIcon?: boolean;
 }) {
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -203,6 +206,10 @@ function PropertyForm({
       <DialogTrigger asChild>
         {isEditMode ? (
             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Edit</DropdownMenuItem>
+        ) : asIcon ? (
+            <Button variant="ghost" size="icon" aria-label="Add Property">
+                <PlusCircle className="h-5 w-5" />
+            </Button>
         ) : (
             <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -279,6 +286,25 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const { setActions } = usePageHeader();
+
+   React.useEffect(() => {
+    setActions(
+      <>
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search shop, or tenant..."
+            className="h-9 pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <PropertyForm onSave={() => {}} asIcon={true} />
+      </>
+    );
+    return () => setActions(null);
+  }, [setActions, searchTerm]);
 
   React.useEffect(() => {
     if (!firestore || !auth) {
@@ -364,23 +390,11 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
       const matchesTab = activeTab === 'all' || property.group === activeTab;
       return matchesSearch && matchesTab;
     }
-  ).sort((a, b) => a.shopNumber - b.shopNumber);
+  ).sort((a, b) => (a.group.localeCompare(b.group)) || (a.shopNumber - b.shopNumber));
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>
       <div className="sticky top-[64px] z-10 space-y-4 border-b bg-background/95 pb-4 pt-2 backdrop-blur-sm">
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search shop, or tenant..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <PropertyForm onSave={() => { /* No-op, handled by snapshot */ }} />
-        </div>
         <TabsList>
           {propertyGroups.map(group => (
             <TabsTrigger key={group} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
