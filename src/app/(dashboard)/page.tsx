@@ -8,14 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { User, Loader2 } from 'lucide-react';
 import { useFirestore } from '@/firebase';
@@ -24,6 +16,8 @@ import { useEffect, useState } from 'react';
 import type { Tenant, Property, TenantWithDetails } from '@/lib/types';
 import { getPaymentStatus } from '@/lib/data-helpers';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -111,56 +105,43 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tenant</TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead className="text-right">Amount Due</TableHead>
-                  <TableHead className="text-right">Due Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
-                      <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
-                    </TableCell>
-                  </TableRow>
-                ) : overdueTenants.length > 0 ? (
-                  overdueTenants.map((tenant) => (
-                    <TableRow key={tenant.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                              <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-base">{tenant.name}</div>
-                            <div className="text-xs text-muted-foreground">{tenant.phone}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{tenant.property.name}</TableCell>
-                      <TableCell className="text-right">
-                        K{tenant.rentAmount.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
-                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
-                          : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
-                      No overdue payments. Great job!
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+            {isLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : overdueTenants.length > 0 ? (
+              <div className="space-y-4">
+                {overdueTenants.map((tenant) => (
+                   <Link href={`/tenants/${tenant.id}`} key={tenant.id} className="block">
+                      <Card className="transition-all hover:shadow-md hover:bg-destructive/10 bg-destructive/5 border-destructive/20">
+                          <CardHeader className="flex-row items-center justify-between p-4">
+                              <div className="flex items-center gap-3">
+                                  <Avatar className="h-9 w-9">
+                                      <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                      <div className="font-medium text-base">{tenant.name}</div>
+                                      <div className="text-xs text-muted-foreground">{tenant.property.name}</div>
+                                  </div>
+                              </div>
+                              <div className="text-right">
+                                  <div className="font-bold text-destructive">K{tenant.rentAmount.toLocaleString()}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                      {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                                        ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                                        : 'N/A'}
+                                  </div>
+                              </div>
+                          </CardHeader>
+                      </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                No overdue payments. Great job!
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -172,52 +153,40 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tenant</TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead className="text-right">Due In</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                 {isLoading ? (
-                    <TableRow>
-                        <TableCell colSpan={3} className="h-24 text-center">
-                            <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
-                        </TableCell>
-                    </TableRow>
-                 ) : upcomingPayments.length > 0 ? (
-                  upcomingPayments.map((tenant) => (
-                    <TableRow key={tenant.id}>
-                      <TableCell>
-                         <div className="flex items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                                <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <div className="font-medium text-base">{tenant.name}</div>
-                                <div className="text-xs text-muted-foreground">{tenant.phone}</div>
-                            </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{tenant.property.name}</TableCell>
-                      <TableCell className="text-right">
-                         {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
-                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
-                          : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center">
-                      No upcoming payments to show.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+             {isLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+             ) : upcomingPayments.length > 0 ? (
+              <div className="space-y-4">
+                {upcomingPayments.map((tenant) => (
+                  <Link href={`/tenants/${tenant.id}`} key={tenant.id} className="block">
+                      <Card className="transition-all hover:shadow-md hover:bg-accent/10 bg-accent/5 border-accent/20">
+                          <CardHeader className="flex-row items-center justify-between p-4">
+                              <div className="flex items-center gap-3">
+                                  <Avatar className="h-9 w-9">
+                                      <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                                  </Avatar>
+                                  <div>
+                                      <div className="font-medium text-base">{tenant.name}</div>
+                                      <div className="text-xs text-muted-foreground">{tenant.property.name}</div>
+                                  </div>
+                              </div>
+                              <div className="text-right text-sm text-muted-foreground">
+                                  {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                                    ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                                    : 'N/A'}
+                              </div>
+                          </CardHeader>
+                      </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                No upcoming payments to show.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
