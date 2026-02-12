@@ -383,17 +383,6 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   );
 }
 
-
-function StatusBadge({ status }: { status: PaymentStatus }) {
-  const variant = {
-    Paid: 'success',
-    Overdue: 'destructive',
-    Upcoming: 'warning',
-  }[status] as 'success' | 'destructive' | 'warning';
-
-  return <Badge variant={variant}>{status}</Badge>;
-}
-
 export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDetails[] }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const firestore = useFirestore();
@@ -619,20 +608,30 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                             {tenantsInGroup.map((tenant) => (
                                 <Card
                                   key={tenant.id}
-                                  className={cn('border transition-all hover:shadow-lg', {
-                                    'bg-primary/5 border-primary/20': tenant.paymentStatus === 'Paid',
-                                    'bg-destructive/5 border-destructive/20': tenant.paymentStatus === 'Overdue',
-                                    'bg-accent/5 border-accent/20': tenant.paymentStatus === 'Upcoming',
+                                  className={cn('border-none transition-all hover:shadow-xl hover:-translate-y-1', {
+                                    'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid',
+                                    'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue',
+                                    'bg-accent text-accent-foreground': tenant.paymentStatus === 'Upcoming',
                                   })}
                                 >
                                 <CardHeader className="flex-row items-start justify-between pb-4">
                                     <div className="flex items-center gap-4">
-                                        <Avatar className="h-10 w-10">
-                                            <AvatarFallback><User className="h-5 w-5" /></AvatarFallback>
+                                        <Avatar className="h-10 w-10 border-2 border-white/50">
+                                            <AvatarFallback className={cn({
+                                                'bg-white/20 text-primary-foreground': tenant.paymentStatus === 'Paid',
+                                                'bg-white/20 text-destructive-foreground': tenant.paymentStatus === 'Overdue',
+                                                'bg-black/10 text-accent-foreground': tenant.paymentStatus === 'Upcoming'
+                                            })}>
+                                                <User className="h-5 w-5" />
+                                            </AvatarFallback>
                                         </Avatar>
                                         <div>
                                             <CardTitle className="text-lg">{tenant.name}</CardTitle>
-                                            <CardDescription className="flex items-center gap-1.5 pt-1 text-xs">
+                                            <CardDescription className={cn("flex items-center gap-1.5 pt-1 text-xs", {
+                                                'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
+                                                'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
+                                                'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming'
+                                            })}>
                                                  <Phone className="h-3 w-3" />
                                                  {tenant.phone}
                                             </CardDescription>
@@ -641,7 +640,10 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                      {tenant.id ? (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", {
+                                                    'hover:bg-white/10': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
+                                                    'hover:bg-black/10': tenant.paymentStatus === 'Upcoming'
+                                                })}>
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
@@ -687,11 +689,19 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     ) : null}
                                 </CardHeader>
                                 <CardContent className="space-y-3 text-sm">
-                                     <div className="flex items-center gap-2 text-muted-foreground">
+                                     <div className={cn("flex items-center gap-2", {
+                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
+                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
+                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming'
+                                    })}>
                                         <Building className="h-4 w-4 shrink-0" />
                                         <span>{tenant.property.name}</span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                    <div className={cn("flex items-center gap-2", {
+                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
+                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
+                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming'
+                                    })}>
                                         <CalendarDays className="h-4 w-4 shrink-0" />
                                         <span>
                                             Due on {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
@@ -701,7 +711,12 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     </div>
                                 </CardContent>
                                 <CardFooter>
-                                     <StatusBadge status={tenant.paymentStatus} />
+                                     <Badge variant="outline" className={cn("font-semibold", {
+                                        'border-white/50 text-white bg-transparent': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
+                                        'border-black/20 text-black bg-transparent': tenant.paymentStatus === 'Upcoming'
+                                    })}>
+                                        {tenant.paymentStatus}
+                                    </Badge>
                                 </CardFooter>
                                 </Card>
                             ))}
