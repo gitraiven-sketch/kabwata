@@ -22,10 +22,6 @@
           "type": "string",
           "description": "The ID of the property the tenant is renting."
         },
-        "rentAmount": {
-          "type": "number",
-          "description": "The amount of rent due."
-        },
         "paymentDay": {
           "type": "number",
           "description": "The day of the month rent is due."
