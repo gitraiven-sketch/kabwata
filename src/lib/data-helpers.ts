@@ -28,6 +28,18 @@ export function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDa
 
     const leaseStart = new Date(tenant.leaseStartDate);
     leaseStart.setHours(0, 0, 0, 0);
+    
+    // If lease hasn't started yet, their first payment is upcoming.
+    if (today < leaseStart) {
+        let firstDueDate = getDueDateFor(leaseStart, tenant.paymentDay);
+        // If lease starts after the payment day of that month, the first due date is next month.
+        if (leaseStart.getDate() > tenant.paymentDay) {
+            const nextMonth = new Date(leaseStart.getFullYear(), leaseStart.getMonth() + 1, 1);
+            firstDueDate = getDueDateFor(nextMonth, tenant.paymentDay);
+        }
+        return { status: 'Upcoming', dueDate: firstDueDate };
+    }
+
 
     const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(0);
     lastPaid.setHours(0, 0, 0, 0);
@@ -45,16 +57,6 @@ export function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDa
         periodStart = getDueDateFor(lastMonth, paymentDay);
     }
     
-    // Handle new tenants correctly.
-    if (periodStart < leaseStart) {
-        let firstDueDate = getDueDateFor(leaseStart, paymentDay);
-        if (leaseStart.getDate() > paymentDay) {
-           // If lease starts after this month's payment day, first payment is next month.
-           const nextMonth = new Date(leaseStart.getFullYear(), leaseStart.getMonth() + 1, 1);
-           firstDueDate = getDueDateFor(nextMonth, paymentDay);
-        }
-        periodStart = firstDueDate;
-    }
     
     // The next due date will be in the following month.
     const nextDueDate = getDueDateFor(new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1), paymentDay);
