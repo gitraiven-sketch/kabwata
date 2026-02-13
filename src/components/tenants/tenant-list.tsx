@@ -133,7 +133,6 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: 0,
         paymentDay: property.paymentDay || 1,
         leaseStartDate: formData.get('leaseStartDate') as string,
         isArchived: false,
@@ -601,7 +600,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                   className={cn('border-none transition-all hover:shadow-xl hover:-translate-y-1', {
                                     'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid',
                                     'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue',
-                                    'bg-accent text-accent-foreground': tenant.paymentStatus === 'Upcoming',
                                   })}
                                 >
                                 <CardHeader className="flex-row items-start justify-between pb-4">
@@ -610,7 +608,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <AvatarFallback className={cn({
                                                 'bg-white/20 text-primary-foreground': tenant.paymentStatus === 'Paid',
                                                 'bg-white/20 text-destructive-foreground': tenant.paymentStatus === 'Overdue',
-                                                'bg-black/10 text-accent-foreground': tenant.paymentStatus === 'Upcoming'
                                             })}>
                                                 <User className="h-5 w-5" />
                                             </AvatarFallback>
@@ -620,7 +617,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <CardDescription className={cn("flex items-center gap-1.5 pt-1 text-xs", {
                                                 'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
                                                 'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
-                                                'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming'
                                             })}>
                                                  <Phone className="h-3 w-3" />
                                                  {tenant.phone}
@@ -632,7 +628,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", {
                                                     'hover:bg-white/10': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
-                                                    'hover:bg-black/10': tenant.paymentStatus === 'Upcoming'
                                                 })}>
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
@@ -682,7 +677,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                      <div className={cn("flex items-center gap-2", {
                                         'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
                                         'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
-                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming'
                                     })}>
                                         <Building className="h-4 w-4 shrink-0" />
                                         <span>{tenant.property.name}</span>
@@ -690,7 +684,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     <div className={cn("flex items-center gap-2", {
                                         'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
                                         'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
-                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming'
                                     })}>
                                         <CalendarDays className="h-4 w-4 shrink-0" />
                                         <span>
@@ -703,7 +696,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                 <CardFooter>
                                      <Badge variant="outline" className={cn("font-semibold", {
                                         'border-white/50 text-white bg-transparent': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
-                                        'border-black/20 text-black bg-transparent': tenant.paymentStatus === 'Upcoming'
                                     })}>
                                         {tenant.paymentStatus}
                                     </Badge>

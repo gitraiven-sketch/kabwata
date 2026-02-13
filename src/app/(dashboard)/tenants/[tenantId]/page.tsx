@@ -21,14 +21,14 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
   const variant = {
     Paid: 'success',
     Overdue: 'destructive',
-    Upcoming: 'warning',
-  }[status] as 'success' | 'destructive' | 'warning';
+  }[status] as 'success' | 'destructive';
 
   const Icon = {
     Paid: Check,
     Overdue: X,
-    Upcoming: Calendar,
   }[status];
+
+  if (!variant || !Icon) return null;
 
   return <Badge variant={variant}><Icon className="mr-1 h-3 w-3"/>{status}</Badge>;
 }
