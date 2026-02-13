@@ -133,7 +133,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: Number(formData.get('rentAmount') as string),
+        rentAmount: 0,
         paymentDay: property.paymentDay || 1,
         leaseStartDate: formData.get('leaseStartDate') as string,
         isArchived: false,
@@ -219,19 +219,6 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="rentAmount" className="text-right">
-                    Rent Amount
-                </Label>
-                <Input
-                    id="rentAmount"
-                    name="rentAmount"
-                    type="number"
-                    required
-                    className="col-span-3"
-                    placeholder="e.g. 2500"
-                />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="leaseStartDate" className="text-right">
                 Lease Start
               </Label>
@@ -289,6 +276,7 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
     name: tenant.name || '',
     phone: tenant.phone ? tenant.phone.replace('+260', '') : '',
     leaseStartDate: getSafeLeaseStart(tenant.leaseStartDate),
+    rentAmount: tenant.rentAmount || 0,
   });
 
   React.useEffect(() => {
@@ -298,13 +286,17 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
         name: tenant.name || '',
         phone: tenant.phone ? tenant.phone.replace('+260', '') : '',
         leaseStartDate: getSafeLeaseStart(tenant.leaseStartDate),
+        rentAmount: tenant.rentAmount || 0,
       });
     }
   }, [open, tenant]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ 
+        ...prev, 
+        [name]: name === 'rentAmount' ? (value === '' ? 0 : parseFloat(value)) : value 
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -316,7 +308,8 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
     const dataToUpdate = {
       name: formData.name,
       phone: `+260${formData.phone}`,
-      leaseStartDate: formData.leaseStartDate, // Should be 'yyyy-MM-dd' string from form
+      leaseStartDate: formData.leaseStartDate,
+      rentAmount: formData.rentAmount,
     };
 
     try {
@@ -364,6 +357,10 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
                 <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-background text-sm text-muted-foreground h-10">+260</span>
                 <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required className="rounded-l-none" />
               </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="rentAmount" className="text-right">Rent Amount</Label>
+                <Input id="rentAmount" name="rentAmount" type="number" value={formData.rentAmount} onChange={handleChange} required className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="leaseStartDate" className="text-right">Lease Start</Label>
