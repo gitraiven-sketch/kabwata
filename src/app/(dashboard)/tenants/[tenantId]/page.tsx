@@ -95,7 +95,6 @@ export default function TenantDetailPage() {
   const handleMarkAsPaid = async () => {
     if (!firestore || !tenantId || !tenantDetails) return;
     
-    // Prevent marking as paid if already paid for the current cycle
     if (tenantDetails.paymentStatus === 'Paid') {
         toast({
             variant: 'destructive',
@@ -130,12 +129,18 @@ export default function TenantDetailPage() {
   const handleRevertPayment = async () => {
     if (!firestore || !tenantId || !tenantDetails) return;
 
+    if (tenantDetails.paymentStatus !== 'Paid') {
+        toast({
+            variant: 'destructive',
+            title: 'Not Paid',
+            description: `${tenantDetails.name} is not marked as paid for the current cycle.`,
+        });
+        return;
+    }
+
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    // The most reliable way to revert is to set the lastPaidDate to a date
-    // guaranteed to be before any possible payment cycle.
-    // Setting it to a day before the lease started is a robust way to do this.
     const leaseStartDate = new Date(tenantDetails.leaseStartDate);
     const revertDate = new Date(leaseStartDate.getTime() - 24 * 60 * 60 * 1000); // One day before lease start
     
@@ -253,7 +258,7 @@ export default function TenantDetailPage() {
                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Mark as Paid
                 </Button>
-                <Button onClick={handleRevertPayment} disabled={isUpdating} variant="outline">
+                <Button onClick={handleRevertPayment} disabled={isUpdating || tenantDetails.paymentStatus !== 'Paid'} variant="outline">
                      {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Revert to Unpaid
                 </Button>
