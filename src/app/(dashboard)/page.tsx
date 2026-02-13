@@ -125,7 +125,6 @@ export default function DashboardPage() {
                                   </div>
                               </div>
                               <div className="text-right">
-                                  <div className="font-bold text-destructive">K{tenant.rentAmount.toLocaleString()}</div>
                                   <div className="text-xs text-muted-foreground">
                                       {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
                                         ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })

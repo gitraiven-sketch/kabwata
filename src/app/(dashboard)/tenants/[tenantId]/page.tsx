@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, BadgeDollarSign, Check, X } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -141,8 +141,9 @@ export default function TenantDetailPage() {
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
+    // Revert to a date before the lease start to ensure it's not considered paid
     const leaseStartDate = new Date(tenantDetails.leaseStartDate);
-    const revertDate = new Date(leaseStartDate.getTime() - 24 * 60 * 60 * 1000); // One day before lease start
+    const revertDate = new Date(leaseStartDate.getTime() - (35 * 24 * 60 * 60 * 1000)); // 35 days before lease start
     
     try {
         await updateDoc(tenantRef, { lastPaidDate: revertDate.toISOString() });
@@ -220,13 +221,6 @@ export default function TenantDetailPage() {
                         <div>
                             <div className="font-semibold">Property</div>
                             <div className="text-muted-foreground">{tenantDetails.property.name}</div>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3 rounded-lg border p-4">
-                        <BadgeDollarSign className="h-6 w-6 text-muted-foreground" />
-                        <div>
-                            <div className="font-semibold">Rent Amount</div>
-                            <div className="text-muted-foreground">K{tenantDetails.rentAmount.toLocaleString()}</div>
                         </div>
                     </div>
                     <div className="flex items-start gap-3 rounded-lg border p-4">

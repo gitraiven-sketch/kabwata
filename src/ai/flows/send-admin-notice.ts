@@ -15,7 +15,6 @@ const SendAdminNoticeInputSchema = z.object({
   overdueTenants: z.array(z.object({
       tenantName: z.string(),
       propertyName: z.string(),
-      rentAmount: z.number(),
       daysOverdue: z.string(),
   })),
   totalOverdue: z.number(),

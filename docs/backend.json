@@ -49,7 +49,6 @@
         "name",
         "phone",
         "propertyId",
-        "rentAmount",
         "paymentDay",
         "leaseStartDate"
       ]

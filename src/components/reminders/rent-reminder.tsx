@@ -123,7 +123,6 @@ function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDe
       const overdueDetails = overdueTenants.map(t => ({
         tenantName: t.name,
         propertyName: t.property.name,
-        rentAmount: t.rentAmount,
         daysOverdue: t.dueDate instanceof Date && !isNaN(t.dueDate.getTime()) ? formatDistanceToNowStrict(t.dueDate, { addSuffix: true }) : 'N/A',
       }));
 
