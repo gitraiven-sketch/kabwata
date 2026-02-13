@@ -56,7 +56,6 @@ export default function TenantDetailPage() {
         if (tenantSnap.exists()) {
             const tenantData = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant;
             
-            // Fetch the associated property
             let property: Property | null = null;
             if (tenantData.propertyId) {
                 const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
@@ -143,16 +142,17 @@ export default function TenantDetailPage() {
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
     // To revert a 'Paid' status, we need to set the lastPaidDate to a date
-    // before the start of the now-paid cycle.
-    // When status is 'Paid', tenantDetails.dueDate is the *next* due date.
+    // that makes the last paid cycle become unpaid again.
+    // The `dueDate` for a 'Paid' tenant is the *next* due date.
     const nextDueDate = tenantDetails.dueDate;
     
-    // The cycle that was just paid started one month before that.
+    // The cycle that was just paid was due one month before that.
     const paidCycleDueDate = new Date(nextDueDate);
     paidCycleDueDate.setMonth(paidCycleDueDate.getMonth() - 1);
 
-    // The cycle before that one started one month before `paidCycleDueDate`.
-    // Setting lastPaidDate to this date will ensure the payment for `paidCycleDueDate` is now outstanding.
+    // To make this cycle unpaid, we need to set `lastPaidDate` to a date
+    // *before* `paidCycleDueDate`. The simplest way is to find the due date
+    // of the cycle *before* the one that was just paid.
     const revertToDate = new Date(paidCycleDueDate);
     revertToDate.setMonth(revertToDate.getMonth() - 1);
 
@@ -160,7 +160,7 @@ export default function TenantDetailPage() {
         await updateDoc(tenantRef, { lastPaidDate: revertToDate.toISOString() });
         toast({
             title: 'Payment Reverted',
-            description: `Reverted last payment for ${tenantDetails.name}.`,
+            description: `Reverted last payment for ${tenantDetails.name}. The status will now be recalculated.`,
         });
     } catch(e) {
          const permissionError = new FirestorePermissionError({
