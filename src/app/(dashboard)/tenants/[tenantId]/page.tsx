@@ -57,23 +57,24 @@ export default function TenantDetailPage() {
             const tenantData = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant;
             
             // Fetch the associated property
-            const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
-            const propSnap = await getDoc(propertyRef);
-
-            if (propSnap.exists()) {
-                const propertyData = { id: propSnap.id, ...propSnap.data() } as Property;
-                const { status, dueDate } = getPaymentStatus(tenantData);
-
-                setTenantDetails({
-                    ...tenantData,
-                    property: propertyData,
-                    paymentStatus: status,
-                    dueDate,
-                });
-            } else {
-                 console.warn(`Property with ID ${tenantData.propertyId} not found.`);
-                 setTenantDetails(null);
+            let property: Property | null = null;
+            if (tenantData.propertyId) {
+                const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
+                const propSnap = await getDoc(propertyRef);
+                if (propSnap.exists()) {
+                    property = { id: propSnap.id, ...propSnap.data() } as Property;
+                }
             }
+            
+            const { status, dueDate } = getPaymentStatus(tenantData);
+
+            setTenantDetails({
+                ...tenantData,
+                property: property || { id: tenantData.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenantData.paymentDay },
+                paymentStatus: status,
+                dueDate,
+            });
+            
         } else {
             console.error('Tenant not found');
             setTenantDetails(null);
@@ -141,12 +142,22 @@ export default function TenantDetailPage() {
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    // Revert to a date before the lease start to ensure it's not considered paid
-    const leaseStartDate = new Date(tenantDetails.leaseStartDate);
-    const revertDate = new Date(leaseStartDate.getTime() - (35 * 24 * 60 * 60 * 1000)); // 35 days before lease start
+    // To revert a 'Paid' status, we need to set the lastPaidDate to a date
+    // before the start of the now-paid cycle.
+    // When status is 'Paid', tenantDetails.dueDate is the *next* due date.
+    const nextDueDate = tenantDetails.dueDate;
     
+    // The cycle that was just paid started one month before that.
+    const paidCycleDueDate = new Date(nextDueDate);
+    paidCycleDueDate.setMonth(paidCycleDueDate.getMonth() - 1);
+
+    // The cycle before that one started one month before `paidCycleDueDate`.
+    // Setting lastPaidDate to this date will ensure the payment for `paidCycleDueDate` is now outstanding.
+    const revertToDate = new Date(paidCycleDueDate);
+    revertToDate.setMonth(revertToDate.getMonth() - 1);
+
     try {
-        await updateDoc(tenantRef, { lastPaidDate: revertDate.toISOString() });
+        await updateDoc(tenantRef, { lastPaidDate: revertToDate.toISOString() });
         toast({
             title: 'Payment Reverted',
             description: `Reverted last payment for ${tenantDetails.name}.`,
@@ -155,7 +166,7 @@ export default function TenantDetailPage() {
          const permissionError = new FirestorePermissionError({
             path: `tenants/${tenantId}`,
             operation: 'update',
-            requestResourceData: { lastPaidDate: revertDate.toISOString() },
+            requestResourceData: { lastPaidDate: revertToDate.toISOString() },
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
@@ -197,7 +208,7 @@ export default function TenantDetailPage() {
                         <CardTitle className="text-3xl">{tenantDetails.name}</CardTitle>
                         <CardDescription>Details and payment status for this tenant.</CardDescription>
                     </div>
-                    <StatusBadge status={tenantDetails.paymentStatus} />
+                    {tenantDetails.paymentStatus && <StatusBadge status={tenantDetails.paymentStatus} />}
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
