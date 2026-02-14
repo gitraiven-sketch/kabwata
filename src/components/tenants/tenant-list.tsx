@@ -593,11 +593,11 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                   
                   return (
                     <TabsContent value={groupName} key={groupName} className="mt-0">
-                       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                       <div className="columns-1 md:columns-3 gap-6 space-y-6">
                             {tenantsInGroup.map((tenant) => (
                                 <Card
                                   key={tenant.id}
-                                  className={cn('border-none transition-all hover:shadow-xl hover:-translate-y-1', {
+                                  className={cn('break-inside-avoid border-none transition-all hover:shadow-xl hover:-translate-y-1', {
                                     'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid',
                                     'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue',
                                   })}
