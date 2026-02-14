@@ -23,6 +23,7 @@ import {
   CalendarDays,
   Phone,
   UserCheck,
+  Trash2,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
@@ -510,6 +511,34 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
         });
   };
 
+  const handleDeleteTenant = (tenantId: string, tenantName: string) => {
+    if (!firestore || !auth) return;
+    if (!tenantId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cannot delete tenant without a valid ID.",
+      });
+      return;
+    }
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    deleteDoc(tenantRef)
+      .then(() => {
+        toast({
+          title: 'Tenant Deleted',
+          description: `${tenantName} has been permanently deleted.`,
+        });
+      })
+      .catch((error) => {
+        const permissionError = new FirestorePermissionError({
+          path: tenantRef.path,
+          operation: 'delete',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+      });
+  };
+
 
   const filteredTenants = tenantsWithDetails.filter(
     (tenant) =>
@@ -607,7 +636,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", {
-                                                    'hover:bg-white/10': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
+                                                    'hover:bg-white/10': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue') && !tenant.isArchived,
                                                     'hover:bg-accent': tenant.isArchived
                                                 })}>
                                                     <MoreHorizontal className="h-4 w-4" />
@@ -632,7 +661,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                     <AlertDialog>
                                                         <AlertDialogTrigger asChild>
                                                             <DropdownMenuItem
-                                                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                                                                 onSelect={(e) => e.preventDefault()}
                                                             >
                                                                 <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
@@ -658,6 +686,34 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                     </AlertDialog>
                                                     </>
                                                 )}
+                                                <DropdownMenuSeparator />
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                            onSelect={(e) => e.preventDefault()}
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Tenant
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action is permanent and cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all their data.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction
+                                                                className="bg-destructive hover:bg-destructive/90"
+                                                                onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                                                            >
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     ) : null}

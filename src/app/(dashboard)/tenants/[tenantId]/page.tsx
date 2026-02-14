@@ -2,10 +2,10 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -224,6 +224,29 @@ export default function TenantDetailPage() {
     }
   };
 
+  const handleDeleteTenant = async () => {
+    if (!firestore || !tenantId || !tenantDetails) return;
+    setIsUpdating(true);
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    try {
+        await deleteDoc(tenantRef);
+        toast({
+            title: 'Tenant Deleted',
+            description: `${tenantDetails.name} has been permanently deleted.`,
+        });
+        router.push('/tenants');
+    } catch(e) {
+        const permissionError = new FirestorePermissionError({
+            path: `tenants/${tenantId}`,
+            operation: 'delete',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+    } finally {
+        setIsUpdating(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -237,7 +260,7 @@ export default function TenantDetailPage() {
     return (
       <div className="text-center">
         <h2 className="text-xl font-semibold">Tenant Not Found</h2>
-        <p className="text-muted-foreground">The requested tenant could not be found or has been archived.</p>
+        <p className="text-muted-foreground">The requested tenant could not be found or has been deleted.</p>
         <Button asChild variant="link">
             <Link href="/tenants">Back to Tenant List</Link>
         </Button>
@@ -312,15 +335,15 @@ export default function TenantDetailPage() {
                     </div>
                 </div>
             </CardContent>
-            <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t pt-6">
-                {tenantDetails.isArchived ? (
-                    <Button onClick={handleReactivateLease} disabled={isUpdating}>
-                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        <UserCheck className="mr-2 h-4 w-4" /> Reactivate Lease
-                    </Button>
-                ) : (
-                    <>
-                    <div className="flex flex-wrap gap-2">
+            <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t pt-6">
+                <div className="flex flex-wrap gap-2">
+                    {tenantDetails.isArchived ? (
+                        <Button onClick={handleReactivateLease} disabled={isUpdating}>
+                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            <UserCheck className="mr-2 h-4 w-4" /> Reactivate Lease
+                        </Button>
+                    ) : (
+                        <>
                         <Button onClick={handleMarkAsPaid} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid'}>
                             {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Mark as Paid
@@ -329,33 +352,61 @@ export default function TenantDetailPage() {
                             {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Revert to Unpaid
                         </Button>
-                    </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {!tenantDetails.isArchived && (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="outline" disabled={isUpdating}>
+                                    <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will mark the tenant as vacant. Their data will be preserved and they will remain in the tenant list.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={handleMarkAsVacant}
+                                    >
+                                        Confirm
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" disabled={isUpdating}>
-                                <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete Tenant
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This will mark the tenant as vacant. Their data will be preserved and they will remain in the tenant list.
+                                    This action cannot be undone. This will permanently delete <strong>{tenantDetails.name}</strong> and all associated data.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                    onClick={handleMarkAsVacant}
+                                    onClick={handleDeleteTenant}
                                     className="bg-destructive hover:bg-destructive/90"
                                 >
-                                    Confirm
+                                    Delete
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                    </>
-                )}
+                </div>
             </CardFooter>
         </Card>
     </div>
