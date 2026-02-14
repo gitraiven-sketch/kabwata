@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,17 @@ import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { getPaymentStatus } from '@/lib/data-helpers';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 
 function StatusBadge({ status }: { status: PaymentStatus }) {
@@ -56,6 +67,13 @@ export default function TenantDetailPage() {
         if (tenantSnap.exists()) {
             const tenantData = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant;
             
+            if (tenantData.isArchived) {
+                setTenantDetails(null);
+                setIsLoading(false);
+                router.replace('/tenants');
+                return;
+            }
+            
             let property: Property | null = null;
             if (tenantData.propertyId) {
                 const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
@@ -89,7 +107,7 @@ export default function TenantDetailPage() {
     });
 
     return () => unsubscribe();
-  }, [firestore, tenantId, auth]);
+  }, [firestore, tenantId, auth, router]);
 
 
   const handleMarkAsPaid = async () => {
@@ -141,38 +159,59 @@ export default function TenantDetailPage() {
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    // To revert a 'Paid' status, we need to set the lastPaidDate to a date
-    // that makes the last paid cycle become unpaid again.
-    // The `dueDate` for a 'Paid' tenant is the *next* due date.
-    const nextDueDate = tenantDetails.dueDate;
-    
-    // The cycle that was just paid was due one month before that.
-    const paidCycleDueDate = new Date(nextDueDate);
-    paidCycleDueDate.setMonth(paidCycleDueDate.getMonth() - 1);
+    const { status, dueDate, previousLastPaidDate } = getPaymentStatus(tenantDetails);
 
-    // To make this cycle unpaid, we need to set `lastPaidDate` to a date
-    // *before* `paidCycleDueDate`. The simplest way is to find the due date
-    // of the cycle *before* the one that was just paid.
-    const revertToDate = new Date(paidCycleDueDate);
-    revertToDate.setMonth(revertToDate.getMonth() - 1);
+    if (status !== 'Paid' || !previousLastPaidDate) {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Revert',
+            description: `Could not determine the previous payment state for ${tenantDetails.name}.`,
+        });
+        setIsUpdating(false);
+        return;
+    }
 
     try {
-        await updateDoc(tenantRef, { lastPaidDate: revertToDate.toISOString() });
+        await updateDoc(tenantRef, { lastPaidDate: previousLastPaidDate.toISOString() });
         toast({
             title: 'Payment Reverted',
-            description: `Reverted last payment for ${tenantDetails.name}. The status will now be recalculated.`,
+            description: `Reverted last payment for ${tenantDetails.name}.`,
         });
     } catch(e) {
          const permissionError = new FirestorePermissionError({
             path: `tenants/${tenantId}`,
             operation: 'update',
-            requestResourceData: { lastPaidDate: revertToDate.toISOString() },
+            requestResourceData: { lastPaidDate: previousLastPaidDate.toISOString() },
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
         setIsUpdating(false);
     }
   }
+  
+  const handleMarkAsVacant = async () => {
+    if (!firestore || !auth || !tenantId || !tenantDetails) return;
+    setIsUpdating(true);
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    try {
+        await updateDoc(tenantRef, { isArchived: true });
+        toast({
+            title: 'Lease Ended',
+            description: `${tenantDetails.name}'s lease has been ended and the property is now vacant.`,
+        });
+        router.push('/tenants');
+    } catch(e) {
+        const permissionError = new FirestorePermissionError({
+            path: `tenants/${tenantId}`,
+            operation: 'update',
+            requestResourceData: { isArchived: true },
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+    } finally {
+        setIsUpdating(false);
+    }
+  };
 
 
   if (isLoading) {
@@ -187,7 +226,7 @@ export default function TenantDetailPage() {
     return (
       <div className="text-center">
         <h2 className="text-xl font-semibold">Tenant Not Found</h2>
-        <p className="text-muted-foreground">The requested tenant could not be found.</p>
+        <p className="text-muted-foreground">The requested tenant could not be found or has been archived.</p>
         <Button asChild variant="link">
             <Link href="/tenants">Back to Tenant List</Link>
         </Button>
@@ -258,15 +297,41 @@ export default function TenantDetailPage() {
                     </div>
                 </div>
             </CardContent>
-            <CardFooter className="flex gap-2 border-t pt-6">
-                <Button onClick={handleMarkAsPaid} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid'}>
-                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Mark as Paid
-                </Button>
-                <Button onClick={handleRevertPayment} disabled={isUpdating || tenantDetails.paymentStatus !== 'Paid'} variant="outline">
-                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Revert to Unpaid
-                </Button>
+            <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t pt-6">
+                <div className="flex flex-wrap gap-2">
+                    <Button onClick={handleMarkAsPaid} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid'}>
+                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Mark as Paid
+                    </Button>
+                    <Button onClick={handleRevertPayment} disabled={isUpdating || tenantDetails.paymentStatus !== 'Paid'} variant="outline">
+                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Revert to Unpaid
+                    </Button>
+                </div>
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isUpdating}>
+                            <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This will mark the property as vacant and archive this tenant. They will no longer appear in the active list.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleMarkAsVacant}
+                                className="bg-destructive hover:bg-destructive/90"
+                            >
+                                Confirm
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </CardFooter>
         </Card>
     </div>

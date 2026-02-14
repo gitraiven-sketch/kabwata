@@ -72,7 +72,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
   const [open, setOpen] = React.useState(false);
   const [propertyCode, setPropertyCode] = React.useState('');
   
-  const occupiedPropertyIds = new Set(tenants.map(t => t.propertyId));
+  const occupiedPropertyIds = new Set(tenants.filter(t => !t.isArchived).map(t => t.propertyId));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -128,13 +128,15 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
 
     const formData = new FormData(event.currentTarget);
     const phone = (formData.get('phone') as string).replace(/^0/, '');
+    const leaseStartDate = formData.get('leaseStartDate') as string;
     
     const newTenantData = {
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
         paymentDay: property.paymentDay || 1,
-        leaseStartDate: formData.get('leaseStartDate') as string,
+        leaseStartDate: leaseStartDate,
+        lastPaidDate: leaseStartDate, // Set initial lastPaidDate to lease start
         isArchived: false,
     };
 
@@ -254,11 +256,9 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
 
-  // This function ensures the date is in 'yyyy-MM-dd' format for the input
   const getSafeLeaseStart = (leaseDate: string | undefined) => {
     if (leaseDate) {
       try {
-        // `parseISO` is more robust for different date string formats
         const parsedDate = parseISO(leaseDate);
         if (!isNaN(parsedDate.getTime())) {
           return format(parsedDate, 'yyyy-MM-dd');
@@ -267,7 +267,6 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
          // Invalid date format, fall through to default
       }
     }
-    // Default to today if missing or invalid
     return format(new Date(), 'yyyy-MM-dd');
   };
   
@@ -278,7 +277,6 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   });
 
   React.useEffect(() => {
-    // Reset form state when the dialog is opened
     if (open) {
       setFormData({
         name: tenant.name || '',
@@ -416,6 +414,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
       const tenantData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
       setTenants(tenantData);
+      setIsLoading(false); // Let the next effect handle loading based on both tenants and props
     }, (error) => {
       console.error("Error fetching tenants:", error);
       setIsLoading(false);
@@ -424,6 +423,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
       const propsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
       setProperties(propsData);
+      setIsLoading(false); // Let the next effect handle loading
     }, (error) => {
         console.error("Error fetching properties:", error);
         setIsLoading(false);
@@ -437,23 +437,10 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
 
   React.useEffect(() => {
-    if (properties.length === 0 && tenants.length > 0 && !isLoading) {
-        // Still waiting for properties
-        return;
-    }
-    
-    if (tenants.length === 0 && !isLoading) {
-        // No tenants to process
-        setTenantsWithDetails([]);
-        setIsLoading(false);
-        return;
-    }
-
-
     const propertyMap = new Map(properties.map(p => [p.id, p]));
     
     const details: TenantWithDetails[] = tenants
-    .filter(tenant => !tenant.isArchived) // Double-check filtering
+    .filter(tenant => !tenant.isArchived)
     .map(tenant => {
         const property = propertyMap.get(tenant.propertyId);
         const { status, dueDate } = getPaymentStatus(tenant);
@@ -467,50 +454,18 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     });
 
     setTenantsWithDetails(details);
-    setIsLoading(false);
 
-  }, [tenants, properties, isLoading]);
-
-
- const handleDeleteTenant = async (tenantId: string) => {
-    if (!firestore || !auth || !tenantId) return;
-
-    const tenantRef = doc(firestore, 'tenants', tenantId);
-
-    try {
-        await deleteDoc(tenantRef);
-        toast({
-            title: "Tenant Deleted",
-            description: "The tenant has been permanently removed.",
-        });
-    } catch (error) {
-        // This is a more robust way to handle permission errors
-        const permissionError = new FirestorePermissionError({
-            path: tenantRef.path,
-            operation: 'delete',
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
-
-        // Fallback for other types of errors
-        if (!(error instanceof FirestorePermissionError)) {
-             toast({
-                variant: 'destructive',
-                title: "Delete Failed",
-                description: "Could not delete the tenant. They may have related payment records.",
-            });
-        }
-    }
-  };
+  }, [tenants, properties]);
 
 
-  const handleEndLease = (tenantId: string, tenantName: string) => {
+ const handleMarkAsVacant = (tenantId: string, tenantName: string) => {
      if (!firestore || !auth) return;
     if (!tenantId) {
-        console.error("handleEndLease called with empty tenantId");
+        console.error("handleMarkAsVacant called with empty tenantId");
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Cannot end lease without a valid tenant ID.",
+            description: "Cannot mark as vacant without a valid tenant ID.",
         });
         return;
     }
@@ -648,12 +603,12 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                             className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                                                             onSelect={(e) => e.preventDefault()}
                                                         >
-                                                            <LogOut className="mr-2 h-4 w-4" /> End Lease
+                                                            <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
                                                         </DropdownMenuItem>
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure you want to end this lease?</AlertDialogTitle>
+                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                             <AlertDialogDescription>
                                                                 This will mark the property as vacant and hide <strong>{tenant.name}</strong> from the active tenants list. Their data will be preserved for your records.
                                                             </AlertDialogDescription>
@@ -662,9 +617,9 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                             <AlertDialogAction
                                                                 className="bg-destructive hover:bg-destructive/90"
-                                                                onClick={() => handleEndLease(tenant.id, tenant.name)}
+                                                                onClick={() => handleMarkAsVacant(tenant.id, tenant.name)}
                                                             >
-                                                                End Lease
+                                                                Confirm
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
@@ -717,5 +672,3 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     </Tabs>
   );
 }
-
-    
