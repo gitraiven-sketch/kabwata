@@ -18,7 +18,7 @@ import {
   Loader2,
   Eye,
   Edit,
-  Archive,
+  LogOut,
   Building,
   CalendarDays,
   Phone,
@@ -503,14 +503,14 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   };
 
 
-  const handleArchiveTenant = (tenantId: string, tenantName: string) => {
+  const handleEndLease = (tenantId: string, tenantName: string) => {
      if (!firestore || !auth) return;
     if (!tenantId) {
-        console.error("handleArchiveTenant called with empty tenantId");
+        console.error("handleEndLease called with empty tenantId");
         toast({
             variant: "destructive",
             title: "Error",
-            description: "Cannot archive tenant without a valid ID.",
+            description: "Cannot end lease without a valid tenant ID.",
         });
         return;
     }
@@ -519,8 +519,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     updateDoc(tenantRef, { isArchived: true })
         .then(() => {
             toast({
-                title: 'Tenant Archived',
-                description: `${tenantName} has been successfully archived.`,
+                title: 'Lease Ended',
+                description: `${tenantName}'s lease has been ended and the property is now vacant.`,
             });
         })
         .catch((error) => {
@@ -648,23 +648,23 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                             className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                                                             onSelect={(e) => e.preventDefault()}
                                                         >
-                                                            <Archive className="mr-2 h-4 w-4" /> Archive
+                                                            <LogOut className="mr-2 h-4 w-4" /> End Lease
                                                         </DropdownMenuItem>
                                                     </AlertDialogTrigger>
                                                     <AlertDialogContent>
                                                         <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                            <AlertDialogTitle>Are you sure you want to end this lease?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                                This will archive <strong>{tenant.name}</strong>. They will be hidden from the app but their data will be preserved.
+                                                                This will mark the property as vacant and hide <strong>{tenant.name}</strong> from the active tenants list. Their data will be preserved for your records.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                             <AlertDialogAction
                                                                 className="bg-destructive hover:bg-destructive/90"
-                                                                onClick={() => handleArchiveTenant(tenant.id, tenant.name)}
+                                                                onClick={() => handleEndLease(tenant.id, tenant.name)}
                                                             >
-                                                                Archive
+                                                                End Lease
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>
@@ -717,3 +717,5 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     </Tabs>
   );
 }
+
+    

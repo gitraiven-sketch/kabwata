@@ -38,7 +38,7 @@
         },
         "isArchived": {
             "type": "boolean",
-            "description": "Whether the tenant is archived and should be hidden from the UI."
+            "description": "Whether the tenant's lease has ended. Archived tenants are hidden from active lists."
         }
       },
       "required": [
@@ -97,3 +97,5 @@
     }
   }
 }
+
+    
