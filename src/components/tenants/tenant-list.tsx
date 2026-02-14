@@ -22,6 +22,7 @@ import {
   Building,
   CalendarDays,
   Phone,
+  UserCheck,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
@@ -440,7 +441,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     const propertyMap = new Map(properties.map(p => [p.id, p]));
     
     const details: TenantWithDetails[] = tenants
-    .filter(tenant => !tenant.isArchived)
     .map(tenant => {
         const property = propertyMap.get(tenant.propertyId);
         const { status, dueDate } = getPaymentStatus(tenant);
@@ -474,8 +474,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     updateDoc(tenantRef, { isArchived: true })
         .then(() => {
             toast({
-                title: 'Lease Ended',
-                description: `${tenantName}'s lease has been ended and the property is now vacant.`,
+                title: 'Tenant Marked as Vacant',
+                description: `${tenantName}'s lease is now marked as vacant.`,
             });
         })
         .catch((error) => {
@@ -487,6 +487,28 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
             errorEmitter.emit('permission-error', permissionError);
         });
   }
+  
+  const handleReactivateTenant = (tenantId: string, tenantName: string) => {
+    if (!firestore || !auth) return;
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    // Reactivate and set as paid for the current cycle to avoid immediate overdue status.
+    updateDoc(tenantRef, { isArchived: false, lastPaidDate: new Date().toISOString() })
+        .then(() => {
+            toast({
+                title: 'Tenant Reactivated',
+                description: `${tenantName}'s lease is now active.`,
+            });
+        })
+        .catch((error) => {
+            const permissionError = new FirestorePermissionError({
+                path: tenantRef.path,
+                operation: 'update',
+                requestResourceData: { isArchived: false },
+            }, auth);
+            errorEmitter.emit('permission-error', permissionError);
+        });
+  };
 
 
   const filteredTenants = tenantsWithDetails.filter(
@@ -553,16 +575,18 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                 <Card
                                   key={tenant.id}
                                   className={cn('break-inside-avoid border-none transition-all hover:shadow-xl hover:-translate-y-1', {
-                                    'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid',
-                                    'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue',
+                                    'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                    'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                    'bg-background text-foreground border shadow-sm': tenant.isArchived,
                                   })}
                                 >
                                 <CardHeader className="flex-row items-start justify-between pb-4">
                                     <div className="flex items-center gap-4">
                                         <Avatar className="h-10 w-10 border-2 border-white/50">
                                             <AvatarFallback className={cn({
-                                                'bg-white/20 text-primary-foreground': tenant.paymentStatus === 'Paid',
-                                                'bg-white/20 text-destructive-foreground': tenant.paymentStatus === 'Overdue',
+                                                'bg-white/20 text-primary-foreground': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                                'bg-white/20 text-destructive-foreground': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                                'bg-muted': tenant.isArchived,
                                             })}>
                                                 <User className="h-5 w-5" />
                                             </AvatarFallback>
@@ -570,8 +594,9 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                         <div>
                                             <CardTitle className="text-lg">{tenant.name}</CardTitle>
                                             <CardDescription className={cn("flex items-center gap-1.5 pt-1 text-xs", {
-                                                'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
-                                                'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
+                                                'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                                'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                                'text-muted-foreground': tenant.isArchived,
                                             })}>
                                                  <Phone className="h-3 w-3" />
                                                  {tenant.phone}
@@ -583,6 +608,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", {
                                                     'hover:bg-white/10': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
+                                                    'hover:bg-accent': tenant.isArchived
                                                 })}>
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
@@ -590,55 +616,65 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem asChild>
-                                                    <Link href={`/tenants/${tenant.id}`}>
-                                                        <Eye className="mr-2 h-4 w-4" />
-                                                        View Details
-                                                    </Link>
-                                                </DropdownMenuItem>
-                                                <EditTenantForm tenant={tenant} onSave={() => {}} />
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <DropdownMenuItem
-                                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                                                            onSelect={(e) => e.preventDefault()}
-                                                        >
-                                                            <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
-                                                        </DropdownMenuItem>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This will mark the property as vacant and hide <strong>{tenant.name}</strong> from the active tenants list. Their data will be preserved for your records.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                            <AlertDialogAction
-                                                                className="bg-destructive hover:bg-destructive/90"
-                                                                onClick={() => handleMarkAsVacant(tenant.id, tenant.name)}
+                                                {tenant.isArchived ? (
+                                                     <DropdownMenuItem onClick={() => handleReactivateTenant(tenant.id, tenant.name)}>
+                                                        <UserCheck className="mr-2 h-4 w-4" /> Reactivate Lease
+                                                    </DropdownMenuItem>
+                                                ) : (
+                                                    <>
+                                                    <DropdownMenuItem asChild>
+                                                        <Link href={`/tenants/${tenant.id}`}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            View Details
+                                                        </Link>
+                                                    </DropdownMenuItem>
+                                                    <EditTenantForm tenant={tenant} onSave={() => {}} />
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem
+                                                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                                onSelect={(e) => e.preventDefault()}
                                                             >
-                                                                Confirm
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
+                                                                <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    This will mark <strong>{tenant.name}</strong> as vacant, turning their card white. They will remain in the tenant list and can be reactivated later.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction
+                                                                    className="bg-destructive hover:bg-destructive/90"
+                                                                    onClick={() => handleMarkAsVacant(tenant.id, tenant.name)}
+                                                                >
+                                                                    Confirm
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                    </>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     ) : null}
                                 </CardHeader>
                                 <CardContent className="space-y-3 text-sm">
                                      <div className={cn("flex items-center gap-2", {
-                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
-                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
+                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                        'text-muted-foreground': tenant.isArchived,
                                     })}>
                                         <Building className="h-4 w-4 shrink-0" />
                                         <span>{tenant.property.name}</span>
                                     </div>
                                     <div className={cn("flex items-center gap-2", {
-                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid',
-                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue',
+                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                        'text-muted-foreground': tenant.isArchived,
                                     })}>
                                         <CalendarDays className="h-4 w-4 shrink-0" />
                                         <span>
@@ -650,9 +686,10 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                 </CardContent>
                                 <CardFooter>
                                      <Badge variant="outline" className={cn("font-semibold", {
-                                        'border-white/50 text-white bg-transparent': tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue',
+                                        'border-white/50 text-white bg-transparent': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue') && !tenant.isArchived,
+                                        'bg-muted text-muted-foreground': tenant.isArchived,
                                     })}>
-                                        {tenant.paymentStatus}
+                                        {tenant.isArchived ? 'Vacant' : tenant.paymentStatus}
                                     </Badge>
                                 </CardFooter>
                                 </Card>

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -66,13 +66,6 @@ export default function TenantDetailPage() {
     const unsubscribe = onSnapshot(tenantRef, async (tenantSnap) => {
         if (tenantSnap.exists()) {
             const tenantData = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant;
-            
-            if (tenantData.isArchived) {
-                setTenantDetails(null);
-                setIsLoading(false);
-                router.replace('/tenants');
-                return;
-            }
             
             let property: Property | null = null;
             if (tenantData.propertyId) {
@@ -159,20 +152,14 @@ export default function TenantDetailPage() {
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    const { status, dueDate, previousLastPaidDate } = getPaymentStatus(tenantDetails);
-
-    if (status !== 'Paid' || !previousLastPaidDate) {
-        toast({
-            variant: 'destructive',
-            title: 'Cannot Revert',
-            description: `Could not determine the previous payment state for ${tenantDetails.name}.`,
-        });
-        setIsUpdating(false);
-        return;
-    }
+    // To revert, we need to find what the last paid date was before the current one.
+    // This simple implementation goes back one cycle. A more complex app might store payment history.
+    const lastPaid = tenantDetails.lastPaidDate ? new Date(tenantDetails.lastPaidDate) : new Date(tenantDetails.leaseStartDate);
+    const previousCycleDate = new Date(lastPaid);
+    previousCycleDate.setMonth(previousCycleDate.getMonth() - 1);
 
     try {
-        await updateDoc(tenantRef, { lastPaidDate: previousLastPaidDate.toISOString() });
+        await updateDoc(tenantRef, { lastPaidDate: previousCycleDate.toISOString() });
         toast({
             title: 'Payment Reverted',
             description: `Reverted last payment for ${tenantDetails.name}.`,
@@ -181,7 +168,7 @@ export default function TenantDetailPage() {
          const permissionError = new FirestorePermissionError({
             path: `tenants/${tenantId}`,
             operation: 'update',
-            requestResourceData: { lastPaidDate: previousLastPaidDate.toISOString() },
+            requestResourceData: { lastPaidDate: previousCycleDate.toISOString() },
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
@@ -206,6 +193,30 @@ export default function TenantDetailPage() {
             path: `tenants/${tenantId}`,
             operation: 'update',
             requestResourceData: { isArchived: true },
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+    } finally {
+        setIsUpdating(false);
+    }
+  };
+
+  const handleReactivateLease = async () => {
+    if (!firestore || !tenantId || !tenantDetails) return;
+    setIsUpdating(true);
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    try {
+        // Set last paid date to today to ensure they start as 'Paid'
+        await updateDoc(tenantRef, { isArchived: false, lastPaidDate: new Date().toISOString() });
+        toast({
+            title: 'Lease Reactivated',
+            description: `${tenantDetails.name}'s lease is now active.`,
+        });
+    } catch(e) {
+         const permissionError = new FirestorePermissionError({
+            path: `tenants/${tenantId}`,
+            operation: 'update',
+            requestResourceData: { isArchived: false },
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
@@ -247,7 +258,11 @@ export default function TenantDetailPage() {
                         <CardTitle className="text-3xl">{tenantDetails.name}</CardTitle>
                         <CardDescription>Details and payment status for this tenant.</CardDescription>
                     </div>
-                    {tenantDetails.paymentStatus && <StatusBadge status={tenantDetails.paymentStatus} />}
+                     {tenantDetails.isArchived ? (
+                        <Badge variant="secondary"><LogOut className="mr-1 h-3 w-3"/>Vacant</Badge>
+                    ) : (
+                        tenantDetails.paymentStatus && <StatusBadge status={tenantDetails.paymentStatus} />
+                    )}
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -298,40 +313,49 @@ export default function TenantDetailPage() {
                 </div>
             </CardContent>
             <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t pt-6">
-                <div className="flex flex-wrap gap-2">
-                    <Button onClick={handleMarkAsPaid} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid'}>
+                {tenantDetails.isArchived ? (
+                    <Button onClick={handleReactivateLease} disabled={isUpdating}>
                         {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Mark as Paid
+                        <UserCheck className="mr-2 h-4 w-4" /> Reactivate Lease
                     </Button>
-                    <Button onClick={handleRevertPayment} disabled={isUpdating || tenantDetails.paymentStatus !== 'Paid'} variant="outline">
-                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Revert to Unpaid
-                    </Button>
-                </div>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={isUpdating}>
-                            <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                ) : (
+                    <>
+                    <div className="flex flex-wrap gap-2">
+                        <Button onClick={handleMarkAsPaid} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid'}>
+                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Mark as Paid
                         </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This will mark the property as vacant and archive this tenant. They will no longer appear in the active list.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={handleMarkAsVacant}
-                                className="bg-destructive hover:bg-destructive/90"
-                            >
-                                Confirm
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+                        <Button onClick={handleRevertPayment} disabled={isUpdating || tenantDetails.paymentStatus !== 'Paid'} variant="outline">
+                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Revert to Unpaid
+                        </Button>
+                    </div>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" disabled={isUpdating}>
+                                <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will mark the tenant as vacant. Their data will be preserved and they will remain in the tenant list.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={handleMarkAsVacant}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                >
+                                    Confirm
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                    </>
+                )}
             </CardFooter>
         </Card>
     </div>
