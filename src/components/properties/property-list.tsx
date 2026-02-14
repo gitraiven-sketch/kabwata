@@ -40,47 +40,8 @@ import { Avatar, AvatarFallback } from '../ui/avatar';
 import { User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { usePageHeader } from '@/context/page-header-context';
-
-function getDueDate(tenant: Tenant): Date {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
-
-    const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(tenant.leaseStartDate);
-    
-    const leaseStart = new Date(tenant.leaseStartDate);
-
-    // Determine the most recent payment cycle start date before or on today
-    let currentCycleStart = new Date(today.getFullYear(), today.getMonth(), tenant.paymentDay);
-    if (today.getDate() < tenant.paymentDay) {
-        // We are in the previous month's payment cycle
-        currentCycleStart.setMonth(currentCycleStart.getMonth() - 1);
-    }
-    
-    // Ensure the cycle start is not before the lease start
-    if (currentCycleStart < leaseStart) {
-        currentCycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), tenant.paymentDay);
-        if(leaseStart.getDate() > tenant.paymentDay) {
-            currentCycleStart.setMonth(currentCycleStart.getMonth() + 1)
-        }
-    }
-    
-    const nextDueDate = new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay);
-    if(today >= nextDueDate) {
-         nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-    }
-
-
-    if (lastPaid >= currentCycleStart) {
-        return nextDueDate;
-    }
-
-    if (today >= new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay)) {
-         const overdueDueDate = new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay);
-         return overdueDueDate;
-    }
-    
-    return nextDueDate;
-}
+import { getPaymentStatus } from '@/lib/data-helpers';
+import { cn } from '@/lib/utils';
 
 function PropertyForm({
   property,
@@ -372,7 +333,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
 
   const tenantsByPropertyId = React.useMemo(() => {
     return tenants.reduce((acc, tenant) => {
-        if (tenant && tenant.propertyId) {
+        if (tenant && tenant.propertyId && !tenant.isArchived) {
             acc[tenant.propertyId] = tenant;
         }
         return acc;
@@ -410,11 +371,20 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredProperties.map((property) => {
                 const tenant = tenantsByPropertyId[property.id];
-                const dueDate = tenant ? getDueDate(tenant) : null;
-                const isOverdue = dueDate ? new Date() > dueDate : false;
+                const { status: paymentStatus, dueDate } = tenant ? getPaymentStatus(tenant) : { status: null, dueDate: null };
                 
                 return (
-                  <Card key={property.id} className="overflow-hidden flex flex-col transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1">
+                  <Card 
+                    key={property.id} 
+                    className={cn(
+                        "overflow-hidden flex flex-col transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1",
+                        {
+                          'bg-primary text-primary-foreground': paymentStatus === 'Paid',
+                          'bg-destructive text-destructive-foreground': paymentStatus === 'Overdue',
+                          'bg-background': !tenant,
+                        }
+                    )}
+                  >
                      <div className="relative flex h-40 w-full items-center justify-center bg-muted">
                       <Building className="h-16 w-16 text-muted-foreground/50" />
                        <div className="absolute top-2 right-2">
@@ -442,15 +412,23 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                       <CardTitle>{property.name}</CardTitle>
                     </CardHeader>
                     <CardContent className="flex-grow space-y-2">
-                      {tenant && dueDate ? (
+                      {tenant && paymentStatus ? (
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                              <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                          <Avatar className="h-9 w-9 border-2 border-white/50">
+                              <AvatarFallback className={cn({
+                                'bg-white/20 text-primary-foreground': paymentStatus === 'Paid',
+                                'bg-white/20 text-destructive-foreground': paymentStatus === 'Overdue',
+                              })}>
+                                <User className="h-4 w-4" />
+                              </AvatarFallback>
                           </Avatar>
                           <div>
                             <div className="font-medium text-base">{tenant.name}</div>
-                            <div className={`text-xs ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                {isOverdue ? 'Overdue' : 'Due'}{' '}
+                            <div className={cn('text-xs', {
+                                'text-primary-foreground/80': paymentStatus === 'Paid',
+                                'text-destructive-foreground/80': paymentStatus === 'Overdue',
+                            })}>
+                                {paymentStatus === 'Overdue' ? 'Overdue' : 'Due'}{' '}
                                 {dueDate instanceof Date && !isNaN(dueDate.getTime())
                                     ? formatDistanceToNow(dueDate, { addSuffix: true })
                                     : 'N/A'}
@@ -458,11 +436,15 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                           </div>
                         </div>
                       ) : (
-                        <div className="font-semibold text-primary">Vacant</div>
+                        <div className="font-semibold text-foreground text-lg">Vacant</div>
                       )}
                     </CardContent>
                      <CardFooter>
-                        <p className="text-sm text-muted-foreground">Pay Day: {property.paymentDay}</p>
+                        <p className={cn('text-sm', {
+                            'text-primary-foreground/80': paymentStatus === 'Paid',
+                            'text-destructive-foreground/80': paymentStatus === 'Overdue',
+                            'text-muted-foreground': !tenant,
+                        })}>Pay Day: {property.paymentDay}</p>
                     </CardFooter>
                   </Card>
                 )
