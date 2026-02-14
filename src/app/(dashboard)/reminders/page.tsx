@@ -61,6 +61,11 @@ export default function RemindersPage() {
           }
         });
         
+        // Sort each category alphabetically
+        for (const category in categories) {
+            categories[category as keyof CategorizedTenants].sort((a, b) => a.name.localeCompare(b.name));
+        }
+
         setCategorizedTenants(categories);
       } catch (error) {
         console.error("Failed to fetch or categorize tenants:", error);

@@ -72,7 +72,7 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
   };
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col break-inside-avoid">
       <CardHeader className="flex-row items-start justify-between gap-4 pb-4">
         <div>
            <CardTitle className="text-base">{tenant.name}</CardTitle>
@@ -184,7 +184,7 @@ function ReminderCategory({ title, tenants, proximity }: { title: string, tenant
       </AccordionTrigger>
       <AccordionContent>
         {tenants.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3">
             {tenants.map(tenant => (
               <TenantReminderCard key={tenant.id} tenant={tenant} proximity={proximity}/>
             ))}
