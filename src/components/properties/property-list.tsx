@@ -42,6 +42,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { usePageHeader } from '@/context/page-header-context';
 import { getPaymentStatus } from '@/lib/data-helpers';
 import { cn } from '@/lib/utils';
+import { Badge } from '../ui/badge';
 
 function PropertyForm({
   property,
@@ -436,7 +437,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                           </div>
                         </div>
                       ) : (
-                        <div className="font-semibold text-foreground text-lg">Vacant</div>
+                        <Badge variant="outline" className="border-2 text-base font-semibold">Vacant</Badge>
                       )}
                     </CardContent>
                      <CardFooter>
