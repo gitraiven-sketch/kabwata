@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -32,11 +32,13 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
   const variant = {
     Paid: 'success',
     Overdue: 'destructive',
-  }[status] as 'success' | 'destructive';
+    Upcoming: 'upcoming',
+  }[status] as 'success' | 'destructive' | 'upcoming';
 
   const Icon = {
     Paid: Check,
     Overdue: X,
+    Upcoming: Clock,
   }[status];
 
   if (!variant || !Icon) return null;

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -17,6 +16,7 @@ import {
   Home,
   CheckCircle,
   AlertCircle,
+  Clock,
 } from 'lucide-react';
 import {
   ChartContainer,
@@ -36,6 +36,7 @@ type DashboardData = {
   statusCounts: {
     Paid: number;
     Overdue: number;
+    Upcoming: number;
   };
 };
 
@@ -50,6 +51,11 @@ const chartConfig: ChartConfig = {
     color: 'hsl(var(--destructive))',
     icon: AlertCircle,
   },
+  upcoming: {
+    label: 'Upcoming',
+    color: 'hsl(var(--chart-2))',
+    icon: Clock,
+  }
 };
 
 export function DashboardClient() {
@@ -59,7 +65,7 @@ export function DashboardClient() {
     totalTenants: 0,
     totalProperties: 0,
     vacantProperties: 0,
-    statusCounts: { Paid: 0, Overdue: 0 },
+    statusCounts: { Paid: 0, Overdue: 0, Upcoming: 0 },
   });
 
   useEffect(() => {
@@ -88,6 +94,7 @@ export function DashboardClient() {
                 statusCounts: {
                     Paid: statusCounts.Paid || 0,
                     Overdue: statusCounts.Overdue || 0,
+                    Upcoming: statusCounts.Upcoming || 0,
                 }
             });
         } catch(e: any) {
@@ -124,6 +131,7 @@ export function DashboardClient() {
   const chartData = [
     { name: 'paid', value: data.statusCounts.Paid, fill: 'var(--color-paid)' },
     { name: 'overdue', value: data.statusCounts.Overdue, fill: 'var(--color-overdue)' },
+    { name: 'upcoming', value: data.statusCounts.Upcoming, fill: 'var(--color-upcoming)' },
   ].filter(item => item.value > 0);
 
   return (

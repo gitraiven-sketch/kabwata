@@ -1,4 +1,3 @@
-
 export type Tenant = {
   id: string;
   name: string;
@@ -19,7 +18,7 @@ export type Property = {
   paymentDay: number;
 };
 
-export type PaymentStatus = 'Paid' | 'Overdue';
+export type PaymentStatus = 'Paid' | 'Overdue' | 'Upcoming';
 
 export type TenantWithDetails = Tenant & {
   property: Property;

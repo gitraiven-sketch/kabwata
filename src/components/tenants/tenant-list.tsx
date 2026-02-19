@@ -606,6 +606,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                   className={cn('break-inside-avoid border-none transition-all hover:shadow-xl hover:-translate-y-1', {
                                     'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
                                     'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                    'bg-accent text-accent-foreground': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
                                     'bg-background text-foreground border shadow-sm': tenant.isArchived,
                                   })}
                                 >
@@ -615,6 +616,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <AvatarFallback className={cn({
                                                 'bg-white/20 text-primary-foreground': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
                                                 'bg-white/20 text-destructive-foreground': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                                'bg-white/20 text-accent-foreground': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
                                                 'bg-muted': tenant.isArchived,
                                             })}>
                                                 <User className="h-5 w-5" />
@@ -625,6 +627,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                             <CardDescription className={cn("flex items-center gap-1.5 pt-1 text-xs", {
                                                 'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
                                                 'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                                'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
                                                 'text-muted-foreground': tenant.isArchived,
                                             })}>
                                                  <Phone className="h-3 w-3" />
@@ -636,7 +639,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", {
-                                                    'hover:bg-white/10': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue') && !tenant.isArchived,
+                                                    'hover:bg-white/10': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue' || tenant.paymentStatus === 'Upcoming') && !tenant.isArchived,
                                                     'hover:bg-accent': tenant.isArchived
                                                 })}>
                                                     <MoreHorizontal className="h-4 w-4" />
@@ -676,7 +679,6 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                                             <AlertDialogFooter>
                                                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                                 <AlertDialogAction
-                                                                    className="bg-destructive hover:bg-destructive/90"
                                                                     onClick={() => handleMarkAsVacant(tenant.id, tenant.name)}
                                                                 >
                                                                     Confirm
@@ -722,6 +724,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                      <div className={cn("flex items-center gap-2", {
                                         'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
                                         'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
                                         'text-muted-foreground': tenant.isArchived,
                                     })}>
                                         <Building className="h-4 w-4 shrink-0" />
@@ -730,6 +733,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     <div className={cn("flex items-center gap-2", {
                                         'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
                                         'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
                                         'text-muted-foreground': tenant.isArchived,
                                     })}>
                                         <CalendarDays className="h-4 w-4 shrink-0" />
@@ -741,9 +745,8 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                     </div>
                                 </CardContent>
                                 <CardFooter>
-                                     <Badge variant="outline" className={cn("font-semibold", {
-                                        'border-white/50 text-white bg-transparent': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue') && !tenant.isArchived,
-                                        'bg-muted text-muted-foreground': tenant.isArchived,
+                                     <Badge variant={tenant.isArchived ? "secondary" : tenant.paymentStatus === 'Paid' ? 'success' : tenant.paymentStatus === 'Overdue' ? 'destructive' : 'upcoming'} className={cn("font-semibold", {
+                                        'border-white/50 text-white bg-transparent': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue' || tenant.paymentStatus === 'Upcoming') && !tenant.isArchived,
                                     })}>
                                         {tenant.isArchived ? 'Vacant' : tenant.paymentStatus}
                                     </Badge>
