@@ -10,6 +10,10 @@ service cloud.firestore {
 
     match /tenants/{tenantId} {
       allow read, create, update, delete: if isSignedIn();
+
+      match /payment_proofs/{proofId} {
+        allow read, create, update, delete: if isSignedIn();
+      }
     }
 
     match /properties/{propertyId} {
