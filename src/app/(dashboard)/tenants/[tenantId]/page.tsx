@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc, deleteDoc, collection, query, orderBy } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus, PaymentProof, PaymentProofStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, Image as ImageIcon, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +34,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +55,27 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
   if (!variant || !Icon) return null;
 
   return <Badge variant={variant}><Icon className="mr-1 h-3 w-3"/>{status}</Badge>;
+}
+
+function ProofStatusBadge({ status }: { status: PaymentProofStatus }) {
+  const variant = {
+    approved: 'success',
+    rejected: 'destructive',
+    pending: 'secondary',
+  }[status] as 'success' | 'destructive' | 'secondary';
+
+  const Icon = {
+    approved: ThumbsUp,
+    rejected: ThumbsDown,
+    pending: Clock,
+  }[status];
+
+  return (
+    <Badge variant={variant} className="capitalize w-full max-w-max justify-center">
+      <Icon className="mr-1 h-3 w-3"/>
+      {status}
+    </Badge>
+  );
 }
 
 
@@ -447,18 +469,64 @@ export default function TenantDetailPage() {
             <div className="lg:col-span-1">
                  <Card>
                     <CardHeader>
-                        <CardTitle>Payment Submissions</CardTitle>
-                        <CardDescription>Review proofs of payment submitted by the tenant.</CardDescription>
+                        <CardTitle>Payment History & Proofs</CardTitle>
+                        <CardDescription>Review and approve payment proofs submitted by the tenant.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {isProofsLoading ? (
                             <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
                         ) : proofs.length > 0 ? (
-                            <div className="space-y-4">
-                                {proofs.map(proof => (
-                                    <ProofCard key={proof.id} proof={proof} onAction={handleProofAction} isUpdating={isUpdating} />
-                                ))}
-                            </div>
+                           <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Submitted</TableHead>
+                                        <TableHead>Proof</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {proofs.map(proof => (
+                                        <TableRow key={proof.id}>
+                                            <TableCell className="text-xs font-medium">
+                                                {formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true })}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <button className="w-16 h-10 relative rounded-md overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+                                                            <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="cover" />
+                                                        </button>
+                                                    </DialogTrigger>
+                                                    <DialogContent className="max-w-3xl">
+                                                        <DialogHeader>
+                                                            <DialogTitle>Proof for {format(new Date(proof.uploadedAt), 'do MMMM, yyyy')}</DialogTitle>
+                                                        </DialogHeader>
+                                                        <div className="relative aspect-video">
+                                                            <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="contain" />
+                                                        </div>
+                                                    </DialogContent>
+                                                </Dialog>
+                                            </TableCell>
+                                            <TableCell>
+                                                <ProofStatusBadge status={proof.status} />
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {proof.status === 'pending' && (
+                                                    <div className="flex gap-2 justify-end">
+                                                        <Button size="icon" variant="outline" className="h-8 w-8 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => handleProofAction(proof.id, 'rejected')} disabled={isUpdating}>
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button size="icon" variant="outline" className="h-8 w-8 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground" onClick={() => handleProofAction(proof.id, 'approved')} disabled={isUpdating}>
+                                                            <Check className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
                         ) : (
                             <div className="py-10 text-center text-sm text-muted-foreground">No payment proofs have been submitted.</div>
                         )}
@@ -478,72 +546,6 @@ function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType, label
             <div className="font-semibold">{label}</div>
             <div className="text-muted-foreground">{value || 'N/A'}</div>
         </div>
-    </div>
-  )
-}
-
-function ProofCard({ proof, onAction, isUpdating }: { proof: PaymentProof; onAction: (proofId: string, status: 'approved' | 'rejected') => void; isUpdating: boolean; }) {
-  
-  const statusConfig = {
-    pending: {
-      Icon: Clock,
-      color: 'bg-yellow-500',
-      text: 'Pending',
-    },
-    approved: {
-      Icon: ThumbsUp,
-      color: 'bg-green-500',
-      text: 'Approved',
-    },
-    rejected: {
-      Icon: ThumbsDown,
-      color: 'bg-red-500',
-      text: 'Rejected',
-    },
-  };
-  
-  const { Icon, color, text } = statusConfig[proof.status];
-
-  return (
-    <div className="rounded-lg border p-4 space-y-3">
-        <div className="flex items-center justify-between">
-            <div className="font-medium text-sm">
-                Submitted {formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true })}
-            </div>
-            <div className={cn("flex items-center text-xs font-semibold px-2 py-1 rounded-full text-white", color)}>
-                <Icon className="h-3 w-3 mr-1" />
-                {text}
-            </div>
-        </div>
-        
-        <Dialog>
-          <DialogTrigger asChild>
-            <button className="w-full h-32 relative rounded-md overflow-hidden bg-muted hover:opacity-80 transition-opacity">
-                <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="cover" />
-            </button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-                <DialogTitle>Proof for {format(new Date(proof.uploadedAt), 'do MMMM, yyyy')}</DialogTitle>
-            </DialogHeader>
-            <div className="relative aspect-video">
-                <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="contain" />
-            </div>
-          </DialogContent>
-        </Dialog>
-        
-        {proof.status === 'pending' && (
-            <div className="flex gap-2 justify-end">
-                <Button size="sm" variant="destructive" onClick={() => onAction(proof.id, 'rejected')} disabled={isUpdating}>
-                    <X className="h-4 w-4 mr-1" />
-                    Reject
-                </Button>
-                <Button size="sm" variant="default" className="bg-primary hover:bg-primary/90" onClick={() => onAction(proof.id, 'approved')} disabled={isUpdating}>
-                    <Check className="h-4 w-4 mr-1" />
-                    Approve
-                </Button>
-            </div>
-        )}
     </div>
   )
 }
