@@ -1,5 +1,6 @@
 export type Tenant = {
   id: string;
+  uid?: string;
   name: string;
   phone: string;
   propertyId: string;

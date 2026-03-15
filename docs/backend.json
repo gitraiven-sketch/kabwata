@@ -10,6 +10,10 @@
           "type": "string",
           "description": "The unique identifier for the tenant."
         },
+        "uid": {
+            "type": "string",
+            "description": "The Firebase Auth UID of the tenant's user account, linking their login to their tenant record."
+        },
         "name": {
           "type": "string",
           "description": "The name of the tenant."
