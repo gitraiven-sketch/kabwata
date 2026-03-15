@@ -72,39 +72,47 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [propertyCode, setPropertyCode] = React.useState('');
-  
+  const [group, setGroup] = React.useState('');
+  const [shopNumberStr, setShopNumberStr] = React.useState('');
+
   const occupiedPropertyIds = new Set(tenants.filter(t => !t.isArchived).map(t => t.propertyId));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!firestore || !auth) return;
 
-    if (!propertyCode) {
+    if (!group || !shopNumberStr) {
         toast({
             variant: 'destructive',
             title: 'Property Not Specified',
-            description: 'Please enter a property code (e.g., A1, B12).',
+            description: 'Please enter both a Group and a Shop Number.',
         });
         return;
     }
 
     setIsLoading(true);
 
-    const parsed = propertyCode.match(/^([A-C])(\d+)$/i);
-    if (!parsed) {
+    const groupName = `Group ${group.toUpperCase()}`;
+    const shopNumber = parseInt(shopNumberStr, 10);
+    
+    if (!/^[A-C]$/i.test(group)) {
         toast({
             variant: 'destructive',
-            title: 'Invalid Property Code',
-            description: 'Code must be a letter (A, B, C) followed by a number (e.g., C1).',
+            title: 'Invalid Group',
+            description: 'Group must be A, B, or C.',
         });
         setIsLoading(false);
         return;
     }
-    
-    const [, groupChar, shopNum] = parsed;
-    const groupName = `Group ${groupChar.toUpperCase()}`;
-    const shopNumber = parseInt(shopNum, 10);
+     if (isNaN(shopNumber) || shopNumber <= 0) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Shop Number',
+            description: 'Please enter a valid shop number.',
+        });
+        setIsLoading(false);
+        return;
+    }
 
     const property = properties.find(p => p.group === groupName && p.shopNumber === shopNumber);
 
@@ -112,7 +120,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
       toast({
         variant: 'destructive',
         title: 'Property Not Found',
-        description: `Property "${propertyCode.toUpperCase()}" could not be found.`,
+        description: `Property "${group.toUpperCase()}${shopNumber}" could not be found.`,
       });
       setIsLoading(false);
       return;
@@ -152,7 +160,8 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
         onTenantAdded();
         setOpen(false);
         (event.target as HTMLFormElement).reset();
-        setPropertyCode('');
+        setGroup('');
+        setShopNumberStr('');
       })
       .catch((error: any) => {
         const permissionError = new FirestorePermissionError({
@@ -208,15 +217,30 @@ function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenan
                 </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="propertyId" className="text-right">
-                Property
+              <Label htmlFor="group" className="text-right">
+                Group
               </Label>
               <Input 
-                id="propertyCode"
-                name="propertyCode"
-                placeholder="e.g. A1, C15"
-                value={propertyCode}
-                onChange={(e) => setPropertyCode(e.target.value)}
+                id="group"
+                name="group"
+                placeholder="e.g. A, B, or C"
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                required 
+                className="col-span-3" 
+              />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shopNumber" className="text-right">
+                Shop No.
+              </Label>
+              <Input 
+                id="shopNumber"
+                name="shopNumber"
+                type="number"
+                placeholder="e.g. 5, 12"
+                value={shopNumberStr}
+                onChange={(e) => setShopNumberStr(e.target.value)}
                 required 
                 className="col-span-3" 
               />
