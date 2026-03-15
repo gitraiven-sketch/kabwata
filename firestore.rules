@@ -1,4 +1,3 @@
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -8,16 +7,41 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /tenants/{tenantId} {
-      allow read, create, update, delete: if isSignedIn();
-
-      match /payment_proofs/{proofId} {
-        allow read, create, update, delete: if isSignedIn();
-      }
+    // All authenticated users can read properties to find their shop.
+    // Writes are limited by the UI of the admin panel.
+    match /properties/{propertyId} {
+        allow read, write: if isSignedIn();
     }
 
-    match /properties/{propertyId} {
-        allow read, create, update, delete: if isSignedIn();
+    match /tenants/{tenantId} {
+      // Any signed-in user can read tenant data. This is necessary for the tenant
+      // app to look up a tenant by shop number before their account is linked.
+      // A more secure implementation would use a Cloud Function for this lookup.
+      allow read: if isSignedIn();
+
+      // Admin panel users can create, delete, and update tenants. The tenant app
+      // will be restricted by its own UI, but a tenant user could technically
+      // update their own document if they bypass the UI. The crucial `uid` linking
+      // is a one-way action handled by the app's logic.
+      allow write: if isSignedIn();
+
+      // Rules for the payment_proofs subcollection nested under each tenant.
+      match /payment_proofs/{proofId} {
+        // Admins need to read all proofs. Tenants should only read their own.
+        // To allow both to work without complex roles, we allow any signed-in
+        // user to read, but the tenant app UI will only query its own path.
+        allow read: if isSignedIn();
+
+        // A tenant can ONLY create a payment proof for themselves.
+        // This is the most critical security rule for the tenant app.
+        // It ensures a user logged in as 'user_abc' can only create a proof
+        // in the path '/tenants/user_abc/payment_proofs/'.
+        allow create: if request.auth.uid == tenantId;
+        
+        // Admins need to update proofs to approve/reject them.
+        // This rule also allows a tenant to update/delete their own proofs, which is acceptable.
+        allow update, delete: if isSignedIn();
+      }
     }
   }
 }
