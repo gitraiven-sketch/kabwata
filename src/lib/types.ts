@@ -37,3 +37,12 @@ export type PaymentProof = {
   status: PaymentProofStatus;
   adminNotes?: string;
 };
+
+export type Payment = {
+  id: string;
+  tenantId: string;
+  rentAmount: number;
+  electricityAmount: number;
+  datePaid: string; // ISO date string
+  linkedProofId?: string;
+};

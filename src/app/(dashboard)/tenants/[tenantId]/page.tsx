@@ -2,10 +2,10 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot, updateDoc, getDoc, deleteDoc, collection, query, orderBy } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, deleteDoc, collection, query, orderBy, addDoc, writeBatch } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
-import type { Tenant, Property, TenantWithDetails, PaymentStatus, PaymentProof, PaymentProofStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, ThumbsUp, ThumbsDown } from 'lucide-react';
+import type { Tenant, Property, TenantWithDetails, PaymentStatus, PaymentProof, PaymentProofStatus, Payment } from '@/lib/types';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, ThumbsUp, ThumbsDown, History, PlusCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -33,9 +33,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 
@@ -90,20 +95,25 @@ export default function TenantDetailPage() {
   
   const [tenantDetails, setTenantDetails] = useState<TenantWithDetails | null>(null);
   const [proofs, setProofs] = useState<PaymentProof[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isProofsLoading, setIsProofsLoading] = useState(true);
+  const [isPaymentsLoading, setIsPaymentsLoading] = useState(true);
+
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [paymentInput, setPaymentInput] = useState({ rentAmount: '', electricityAmount: '' });
+  const [activeProof, setActiveProof] = useState<PaymentProof | null>(null);
 
   useEffect(() => {
     if (!firestore || !tenantId) return;
 
+    // Listener for tenant details
     const tenantRef = doc(firestore, 'tenants', tenantId);
-    const proofsQuery = query(collection(firestore, 'tenants', tenantId, 'payment_proofs'), orderBy('uploadedAt', 'desc'));
-
     const unsubTenant = onSnapshot(tenantRef, async (tenantSnap) => {
         if (tenantSnap.exists()) {
             const tenantData = { id: tenantSnap.id, ...tenantSnap.data() } as Tenant;
-            
             let property: Property | null = null;
             if (tenantData.propertyId) {
                 const propertyRef = doc(firestore, 'properties', tenantData.propertyId);
@@ -112,148 +122,185 @@ export default function TenantDetailPage() {
                     property = { id: propSnap.id, ...propSnap.data() } as Property;
                 }
             }
-            
             const { status, dueDate } = getPaymentStatus(tenantData);
-
             setTenantDetails({
                 ...tenantData,
                 property: property || { id: tenantData.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenantData.paymentDay },
                 paymentStatus: status,
                 dueDate,
             });
-            
         } else {
-            console.error('Tenant not found');
             setTenantDetails(null);
         }
         setIsLoading(false);
     }, (error) => {
-       const permissionError = new FirestorePermissionError({
-            path: `tenants/${tenantId}`,
-            operation: 'get',
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
-        setIsLoading(false);
+       const permissionError = new FirestorePermissionError({ path: `tenants/${tenantId}`, operation: 'get' }, auth);
+       errorEmitter.emit('permission-error', permissionError);
+       setIsLoading(false);
     });
 
+    // Listener for payment proofs
+    const proofsQuery = query(collection(firestore, 'tenants', tenantId, 'payment_proofs'), orderBy('uploadedAt', 'desc'));
     const unsubProofs = onSnapshot(proofsQuery, (snapshot) => {
         const proofsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentProof));
         setProofs(proofsData);
         setIsProofsLoading(false);
     }, (error) => {
-        const permissionError = new FirestorePermissionError({
-            path: `tenants/${tenantId}/payment_proofs`,
-            operation: 'list',
-        }, auth);
+        const permissionError = new FirestorePermissionError({ path: `tenants/${tenantId}/payment_proofs`, operation: 'list' }, auth);
         errorEmitter.emit('permission-error', permissionError);
         setIsProofsLoading(false);
     });
 
+    // Listener for payment history
+    const paymentsQuery = query(collection(firestore, 'tenants', tenantId, 'payments'), orderBy('datePaid', 'desc'));
+    const unsubPayments = onSnapshot(paymentsQuery, (snapshot) => {
+        const paymentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+        setPayments(paymentsData);
+        setIsPaymentsLoading(false);
+    }, (error) => {
+        const permissionError = new FirestorePermissionError({ path: `tenants/${tenantId}/payments`, operation: 'list' }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+        setIsPaymentsLoading(false);
+    });
+
+
     return () => {
         unsubTenant();
         unsubProofs();
+        unsubPayments();
     };
-  }, [firestore, tenantId, auth, router]);
+  }, [firestore, tenantId, auth]);
 
-  const handleProofAction = async (proofId: string, newStatus: 'approved' | 'rejected') => {
-    if (!firestore || !auth || !tenantId) return;
-    setIsUpdating(true);
-    const proofRef = doc(firestore, 'tenants', tenantId, 'payment_proofs', proofId);
 
-    try {
-        await updateDoc(proofRef, { status: newStatus });
-
-        if (newStatus === 'approved') {
-            const tenantRef = doc(firestore, 'tenants', tenantId);
-            await updateDoc(tenantRef, { lastPaidDate: new Date().toISOString() });
-            toast({
-                title: 'Proof Approved',
-                description: 'Tenant has been marked as paid for this cycle.',
-            });
-        } else {
-            toast({
-                variant: 'default',
-                title: 'Proof Rejected',
-                description: 'The proof of payment has been marked as rejected.',
-            });
-        }
-    } catch(e) {
-        const permissionError = new FirestorePermissionError({
-            path: proofRef.path,
-            operation: 'update',
-            requestResourceData: { status: newStatus },
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
-    } finally {
-        setIsUpdating(false);
-    }
+  const handleOpenPaymentDialog = (proof: PaymentProof | null) => {
+    setActiveProof(proof);
+    setPaymentInput({ rentAmount: '', electricityAmount: '' });
+    setIsPaymentDialogOpen(true);
   };
+  
+  const handleRecordPayment = async () => {
+    if (!firestore || !auth || !tenantId) return;
 
+    const rentAmount = parseFloat(paymentInput.rentAmount) || 0;
+    const electricityAmount = parseFloat(paymentInput.electricityAmount) || 0;
 
-  const handleMarkAsPaid = async () => {
-    if (!firestore || !tenantId || !tenantDetails) return;
-    
-    if (tenantDetails.paymentStatus === 'Paid') {
-        toast({
-            variant: 'destructive',
-            title: 'Already Paid',
-            description: `${tenantDetails.name} has already paid for the current cycle.`,
-        });
+    if (rentAmount <= 0) {
+        toast({ variant: 'destructive', title: 'Invalid Amount', description: 'Rent amount must be greater than zero.' });
         return;
     }
-
+    
     setIsUpdating(true);
-    const tenantRef = doc(firestore, 'tenants', tenantId);
+    const datePaid = new Date();
 
     try {
-        const newLastPaidDate = new Date().toISOString();
-        await updateDoc(tenantRef, { lastPaidDate: newLastPaidDate });
+        const batch = writeBatch(firestore);
+
+        // 1. Create a new payment record
+        const paymentsCollection = collection(firestore, 'tenants', tenantId, 'payments');
+        const newPaymentRef = doc(paymentsCollection);
+        batch.set(newPaymentRef, {
+            tenantId,
+            rentAmount,
+            electricityAmount,
+            datePaid: datePaid.toISOString(),
+            linkedProofId: activeProof?.id || null,
+        });
+
+        // 2. Update the tenant's last paid date
+        const tenantRef = doc(firestore, 'tenants', tenantId);
+        batch.update(tenantRef, { lastPaidDate: datePaid.toISOString() });
+
+        // 3. If from a proof, update the proof status
+        if (activeProof) {
+            const proofRef = doc(firestore, 'tenants', tenantId, 'payment_proofs', activeProof.id);
+            batch.update(proofRef, { status: 'approved' });
+        }
+
+        await batch.commit();
+
         toast({
             title: 'Payment Recorded',
-            description: `Marked ${tenantDetails.name}'s rent as paid for this cycle.`,
+            description: `Payment of K${rentAmount + electricityAmount} has been recorded.`,
         });
-    } catch(e) {
-        const permissionError = new FirestorePermissionError({
-            path: `tenants/${tenantId}`,
-            operation: 'update',
-            requestResourceData: { lastPaidDate: new Date().toISOString() },
+
+    } catch (e: any) {
+         const permissionError = new FirestorePermissionError({
+            path: `tenants/${tenantId}/payments`,
+            operation: 'create',
+            requestResourceData: { rentAmount, electricityAmount },
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
         setIsUpdating(false);
+        setIsPaymentDialogOpen(false);
+        setActiveProof(null);
     }
   };
 
-  const handleRevertPayment = async () => {
-    if (!firestore || !tenantId || !tenantDetails) return;
+  const handleRejectProof = async (proofId: string) => {
+     if (!firestore || !auth || !tenantId) return;
+     setIsUpdating(true);
+     const proofRef = doc(firestore, 'tenants', tenantId, 'payment_proofs', proofId);
 
-    if (tenantDetails.paymentStatus !== 'Paid') {
-        toast({
-            variant: 'destructive',
-            title: 'Not Paid',
-            description: `${tenantDetails.name} is not marked as paid for the current cycle.`,
-        });
+     try {
+         await updateDoc(proofRef, { status: 'rejected' });
+         toast({
+             variant: 'default',
+             title: 'Proof Rejected',
+             description: 'The proof of payment has been marked as rejected.',
+         });
+     } catch(e) {
+         const permissionError = new FirestorePermissionError({
+            path: proofRef.path,
+            operation: 'update',
+            requestResourceData: { status: 'rejected' },
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+     } finally {
+        setIsUpdating(false);
+     }
+  };
+
+
+  const handleRevertPayment = async () => {
+    if (!firestore || !tenantId || !tenantDetails || payments.length === 0) {
+        toast({ variant: 'destructive', title: 'No Payment to Revert', description: 'There is no recorded payment to revert.' });
         return;
     }
-
-    setIsUpdating(true);
-    const tenantRef = doc(firestore, 'tenants', tenantId);
     
-    const lastPaid = tenantDetails.lastPaidDate ? new Date(tenantDetails.lastPaidDate) : new Date(tenantDetails.leaseStartDate);
-    const previousCycleDate = new Date(lastPaid);
-    previousCycleDate.setMonth(previousCycleDate.getMonth() - 1);
+    setIsUpdating(true);
 
     try {
-        await updateDoc(tenantRef, { lastPaidDate: previousCycleDate.toISOString() });
+        const batch = writeBatch(firestore);
+
+        // 1. Delete the most recent payment record
+        const lastPayment = payments[0];
+        const paymentRef = doc(firestore, 'tenants', tenantId, 'payments', lastPayment.id);
+        batch.delete(paymentRef);
+
+        // 2. Find the previous payment date or lease start date
+        const previousLastPaidDate = payments.length > 1 ? payments[1].datePaid : tenantDetails.leaseStartDate;
+
+        // 3. Update the tenant's lastPaidDate to the previous date
+        const tenantRef = doc(firestore, 'tenants', tenantId);
+        batch.update(tenantRef, { lastPaidDate: previousLastPaidDate });
+
+        // 4. If the reverted payment was linked to a proof, set proof status back to pending
+        if (lastPayment.linkedProofId) {
+            const proofRef = doc(firestore, 'tenants', tenantId, 'payment_proofs', lastPayment.linkedProofId);
+            batch.update(proofRef, { status: 'pending' });
+        }
+        
+        await batch.commit();
+        
         toast({
             title: 'Payment Reverted',
-            description: `Reverted last payment for ${tenantDetails.name}.`,
+            description: `Last payment for ${tenantDetails.name} has been reverted.`,
         });
     } catch(e) {
          const permissionError = new FirestorePermissionError({
-            path: `tenants/${tenantId}`,
-            operation: 'update',
-            requestResourceData: { lastPaidDate: previousCycleDate.toISOString() },
+            path: `tenants/${tenantId}/payments`,
+            operation: 'delete',
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
     } finally {
@@ -360,8 +407,66 @@ export default function TenantDetailPage() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Tenants
         </Button>
+        
+        <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Record Payment for {tenantDetails.name}</DialogTitle>
+                    <DialogDescription>
+                        {activeProof ? 'Review the proof and enter the amounts paid.' : 'Enter the amounts for this manual payment.'}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    {activeProof && activeProof.imageUrl && (
+                         <div className="flex justify-center">
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <button className="w-40 h-24 relative rounded-md overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+                                        <Image src={activeProof.imageUrl} alt="Proof of payment" layout="fill" objectFit="cover" />
+                                    </button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-3xl">
+                                    <div className="relative aspect-video">
+                                        <Image src={activeProof.imageUrl} alt="Proof of payment" layout="fill" objectFit="contain" />
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
+                    )}
+                    <div className="space-y-2">
+                        <Label htmlFor="rentAmount">Rent Amount</Label>
+                        <Input 
+                            id="rentAmount"
+                            type="number"
+                            placeholder="e.g. 2500"
+                            value={paymentInput.rentAmount}
+                            onChange={(e) => setPaymentInput(p => ({...p, rentAmount: e.target.value}))}
+                        />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="electricityAmount">Electricity Paid</Label>
+                        <Input 
+                            id="electricityAmount"
+                            type="number"
+                            placeholder="e.g. 150"
+                            value={paymentInput.electricityAmount}
+                             onChange={(e) => setPaymentInput(p => ({...p, electricityAmount: e.target.value}))}
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline" disabled={isUpdating}>Cancel</Button></DialogClose>
+                    <Button onClick={handleRecordPayment} disabled={isUpdating}>
+                        {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirm Payment
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+
         <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-3">
                 <Card>
                     <CardHeader>
                         <div className="flex items-center justify-between">
@@ -377,15 +482,14 @@ export default function TenantDetailPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <InfoItem icon={User} label="Tenant Info" value={tenantDetails.name} />
                             <InfoItem icon={Phone} label="Contact" value={tenantDetails.phone} />
                             <InfoItem icon={Building} label="Property" value={tenantDetails.property.name} />
-                            <InfoItem icon={Calendar} label="Due Date" value={tenantDetails.dueDate instanceof Date && !isNaN(tenantDetails.dueDate.getTime()) ? format(tenantDetails.dueDate, 'do MMMM, yyyy') : 'N/A'} />
-                            <InfoItem icon={Calendar} label="Lease Start" value={tenantDetails.leaseStartDate && !isNaN(new Date(tenantDetails.leaseStartDate).getTime()) ? format(new Date(tenantDetails.leaseStartDate), 'do MMMM, yyyy') : 'N/A'} />
+                            <InfoItem icon={Calendar} label="Next Due Date" value={tenantDetails.dueDate instanceof Date && !isNaN(tenantDetails.dueDate.getTime()) ? format(tenantDetails.dueDate, 'do MMMM, yyyy') : 'N/A'} />
                         </div>
                     </CardContent>
-                    <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t pt-6">
+                     <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t pt-6">
                         <div className="flex flex-wrap gap-2">
                             {tenantDetails.isArchived ? (
                                 <Button onClick={handleReactivateLease} disabled={isUpdating}>
@@ -394,23 +498,9 @@ export default function TenantDetailPage() {
                                 </Button>
                             ) : (
                                 <>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                             <div tabIndex={0}>
-                                                <Button onClick={handleMarkAsPaid} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid' || hasPendingProof}>
-                                                    {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                    Mark as Paid
-                                                </Button>
-                                             </div>
-                                        </TooltipTrigger>
-                                        {hasPendingProof && (
-                                            <TooltipContent>
-                                                <p>A pending proof exists. Please approve or reject it.</p>
-                                            </TooltipContent>
-                                        )}
-                                    </Tooltip>
-                                </TooltipProvider>
+                                <Button onClick={() => handleOpenPaymentDialog(null)} disabled={isUpdating || tenantDetails.paymentStatus === 'Paid' || hasPendingProof}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Record Payment
+                                </Button>
 
                                 <Button onClick={handleRevertPayment} disabled={isUpdating || tenantDetails.paymentStatus !== 'Paid'} variant="outline">
                                     {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -465,74 +555,112 @@ export default function TenantDetailPage() {
                     </CardFooter>
                 </Card>
             </div>
+        </div>
 
-            <div className="lg:col-span-1">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Payment History & Proofs</CardTitle>
-                        <CardDescription>Review and approve payment proofs submitted by the tenant.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isProofsLoading ? (
-                            <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
-                        ) : proofs.length > 0 ? (
-                           <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Submitted</TableHead>
-                                        <TableHead>Proof</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+        <div className="grid gap-6 lg:grid-cols-2">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Payment History</CardTitle>
+                    <CardDescription>A log of all recorded payments for this tenant.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isPaymentsLoading ? (
+                         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
+                    ) : payments.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date Paid</TableHead>
+                                    <TableHead className="text-right">Rent</TableHead>
+                                    <TableHead className="text-right">Electricity</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {payments.map(payment => (
+                                    <TableRow key={payment.id}>
+                                        <TableCell>
+                                            <div className="font-medium">{format(new Date(payment.datePaid), 'dd MMM, yyyy')}</div>
+                                            <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(payment.datePaid), { addSuffix: true })}</div>
+                                        </TableCell>
+                                        <TableCell className="text-right">K{payment.rentAmount.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">K{payment.electricityAmount.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-semibold">K{(payment.rentAmount + payment.electricityAmount).toFixed(2)}</TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {proofs.map(proof => (
-                                        <TableRow key={proof.id}>
-                                            <TableCell className="text-xs font-medium">
-                                                {formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true })}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Dialog>
-                                                    <DialogTrigger asChild>
-                                                        <button className="w-16 h-10 relative rounded-md overflow-hidden bg-muted hover:opacity-80 transition-opacity">
-                                                            <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="cover" />
-                                                        </button>
-                                                    </DialogTrigger>
-                                                    <DialogContent className="max-w-3xl">
-                                                        <DialogHeader>
-                                                            <DialogTitle>Proof for {format(new Date(proof.uploadedAt), 'do MMMM, yyyy')}</DialogTitle>
-                                                        </DialogHeader>
-                                                        <div className="relative aspect-video">
-                                                            <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="contain" />
-                                                        </div>
-                                                    </DialogContent>
-                                                </Dialog>
-                                            </TableCell>
-                                            <TableCell>
-                                                <ProofStatusBadge status={proof.status} />
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                {proof.status === 'pending' && (
-                                                    <div className="flex gap-2 justify-end">
-                                                        <Button size="icon" variant="outline" className="h-8 w-8 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => handleProofAction(proof.id, 'rejected')} disabled={isUpdating}>
-                                                            <X className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button size="icon" variant="outline" className="h-8 w-8 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground" onClick={() => handleProofAction(proof.id, 'approved')} disabled={isUpdating}>
-                                                            <Check className="h-4 w-4" />
-                                                        </Button>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="py-10 text-center text-sm text-muted-foreground">No payments have been recorded yet.</div>
+                    )}
+                </CardContent>
+            </Card>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle>Payment Proofs</CardTitle>
+                    <CardDescription>Review and approve payment proofs submitted by the tenant.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isProofsLoading ? (
+                        <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary"/></div>
+                    ) : proofs.length > 0 ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Submitted</TableHead>
+                                    <TableHead>Proof</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {proofs.map(proof => (
+                                    <TableRow key={proof.id}>
+                                        <TableCell className="text-xs font-medium">
+                                            {formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true })}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <button className="w-16 h-10 relative rounded-md overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+                                                        <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="cover" />
+                                                    </button>
+                                                </DialogTrigger>
+                                                <DialogContent className="max-w-3xl">
+                                                    <DialogHeader>
+                                                        <DialogTitle>Proof for {format(new Date(proof.uploadedAt), 'do MMMM, yyyy')}</DialogTitle>
+                                                    </DialogHeader>
+                                                    <div className="relative aspect-video">
+                                                        <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="contain" />
                                                     </div>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        ) : (
-                            <div className="py-10 text-center text-sm text-muted-foreground">No payment proofs have been submitted.</div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+                                                </DialogContent>
+                                            </Dialog>
+                                        </TableCell>
+                                        <TableCell>
+                                            <ProofStatusBadge status={proof.status} />
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {proof.status === 'pending' && (
+                                                <div className="flex gap-2 justify-end">
+                                                    <Button size="icon" variant="outline" className="h-8 w-8 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground" onClick={() => handleRejectProof(proof.id)} disabled={isUpdating}>
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button size="icon" variant="outline" className="h-8 w-8 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground" onClick={() => handleOpenPaymentDialog(proof)} disabled={isUpdating}>
+                                                        <Check className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="py-10 text-center text-sm text-muted-foreground">No payment proofs have been submitted.</div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     </div>
   );
@@ -540,11 +668,11 @@ export default function TenantDetailPage() {
 
 function InfoItem({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string | null | undefined }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border p-4">
-        <Icon className="h-6 w-6 text-muted-foreground mt-1" />
+    <div className="flex items-start gap-3 rounded-lg border p-3">
+        <Icon className="h-5 w-5 text-muted-foreground mt-0.5" />
         <div>
-            <div className="font-semibold">{label}</div>
-            <div className="text-muted-foreground">{value || 'N/A'}</div>
+            <div className="font-semibold text-sm">{label}</div>
+            <div className="text-muted-foreground text-sm">{value || 'N/A'}</div>
         </div>
     </div>
   )

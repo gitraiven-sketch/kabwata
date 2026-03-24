@@ -93,6 +93,20 @@
             "adminNotes": { "type": "string" }
         },
         "required": ["tenantId", "imageUrl", "uploadedAt", "status"]
+    },
+    "Payment": {
+        "title": "Payment",
+        "description": "A record of a payment made by a tenant, including rent and electricity.",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "tenantId": { "type": "string" },
+            "rentAmount": { "type": "number" },
+            "electricityAmount": { "type": "number" },
+            "datePaid": { "type": "string", "format": "date-time" },
+            "linkedProofId": { "type": "string", "description": "ID of the payment proof this record is based on, if any." }
+        },
+        "required": ["tenantId", "rentAmount", "electricityAmount", "datePaid"]
     }
   },
   "auth": {
@@ -113,6 +127,10 @@
       },
       "description": "Collection of payment proofs submitted by a tenant."
     },
+    "/tenants/{tenantId}/payments/{paymentId}": {
+        "schema": { "$ref": "#/entities/Payment" },
+        "description": "Historical log of all payments made by a tenant."
+    },
     "/properties/{propertyId}": {
         "schema": {
             "$ref": "#/entities/Property"
@@ -121,5 +139,3 @@
     }
   }
 }
-
-    
