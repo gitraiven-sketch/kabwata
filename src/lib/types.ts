@@ -32,7 +32,7 @@ export type PaymentProofStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentProof = {
   id: string;
   tenantId: string;
-  imageUrl: string;
+  amountInWords: string;
   uploadedAt: string; // ISO date string
   status: PaymentProofStatus;
   adminNotes?: string;

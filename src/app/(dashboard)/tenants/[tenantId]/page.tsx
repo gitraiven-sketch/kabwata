@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, onSnapshot, updateDoc, getDoc, deleteDoc, collection, query, orderBy, writeBatch } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus, PaymentProof, PaymentProofStatus } from '@/lib/types';
-import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, ThumbsUp, ThumbsDown, History, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, ThumbsUp, ThumbsDown, History, PlusCircle, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import Image from 'next/image';
 import { getPaymentStatus } from '@/lib/data-helpers';
 import {
   AlertDialog,
@@ -27,13 +26,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
@@ -443,7 +435,7 @@ export default function TenantDetailPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Payment Submissions</CardTitle>
-                    <CardDescription>Review and approve payment proofs submitted by the tenant.</CardDescription>
+                    <CardDescription>Review and approve payment amounts submitted by the tenant.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isProofsLoading ? (
@@ -453,7 +445,7 @@ export default function TenantDetailPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Submitted</TableHead>
-                                    <TableHead>Proof</TableHead>
+                                    <TableHead>Amount (in words)</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -465,21 +457,10 @@ export default function TenantDetailPage() {
                                             {formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true })}
                                         </TableCell>
                                         <TableCell>
-                                            <Dialog>
-                                                <DialogTrigger asChild>
-                                                    <button className="w-16 h-10 relative rounded-md overflow-hidden bg-muted hover:opacity-80 transition-opacity">
-                                                        <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="cover" />
-                                                    </button>
-                                                </DialogTrigger>
-                                                <DialogContent className="max-w-3xl">
-                                                    <DialogHeader>
-                                                        <DialogTitle>Proof for {format(new Date(proof.uploadedAt), 'do MMMM, yyyy')}</DialogTitle>
-                                                    </DialogHeader>
-                                                    <div className="relative aspect-video">
-                                                        <Image src={proof.imageUrl} alt="Proof of payment" layout="fill" objectFit="contain" />
-                                                    </div>
-                                                </DialogContent>
-                                            </Dialog>
+                                            <p className="text-sm font-medium flex items-center gap-2">
+                                                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                                "{proof.amountInWords}"
+                                            </p>
                                         </TableCell>
                                         <TableCell>
                                             <ProofStatusBadge status={proof.status} />
@@ -501,7 +482,7 @@ export default function TenantDetailPage() {
                             </TableBody>
                         </Table>
                     ) : (
-                        <div className="py-10 text-center text-sm text-muted-foreground">No payment proofs have been submitted.</div>
+                        <div className="py-10 text-center text-sm text-muted-foreground">No payment submissions have been made.</div>
                     )}
                 </CardContent>
             </Card>

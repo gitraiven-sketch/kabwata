@@ -82,17 +82,17 @@
     },
     "PaymentProof": {
         "title": "Payment Proof",
-        "description": "A record of a tenant's submitted proof of payment.",
+        "description": "A record of a tenant's submitted payment amount in words.",
         "type": "object",
         "properties": {
             "id": { "type": "string" },
             "tenantId": { "type": "string" },
-            "imageUrl": { "type": "string", "format": "uri" },
+            "amountInWords": { "type": "string", "description": "The amount paid, submitted in words by the tenant." },
             "uploadedAt": { "type": "string", "format": "date-time" },
             "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
             "adminNotes": { "type": "string" }
         },
-        "required": ["tenantId", "imageUrl", "uploadedAt", "status"]
+        "required": ["tenantId", "amountInWords", "uploadedAt", "status"]
     }
   },
   "auth": {
