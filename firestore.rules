@@ -42,12 +42,6 @@ service cloud.firestore {
         // This rule also allows a tenant to update/delete their own proofs, which is acceptable.
         allow update, delete: if isSignedIn();
       }
-
-      // Rules for the payments subcollection
-      match /payments/{paymentId} {
-        // Admins can manage payment records
-        allow read, write, delete: if isSignedIn();
-      }
     }
   }
 }
