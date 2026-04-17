@@ -32,7 +32,7 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/tenants', icon: Users, label: 'Tenants' },
   { href: '/properties', icon: Building, label: 'Properties' },
   { href: '/reminders', icon: Bell, label: 'Reminders' },
