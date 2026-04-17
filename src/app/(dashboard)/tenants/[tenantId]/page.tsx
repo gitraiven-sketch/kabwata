@@ -119,7 +119,16 @@ export default function TenantDetailPage() {
 
     const proofsQuery = query(collection(firestore, 'tenants', tenantId, 'payment_proofs'), orderBy('uploadedAt', 'desc'));
     const unsubProofs = onSnapshot(proofsQuery, (snapshot) => {
-        const proofsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PaymentProof));
+        const proofsData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Firestore timestamps can be objects. Convert to a string if needed.
+            const uploadedAt = data.uploadedAt?.toDate ? data.uploadedAt.toDate().toISOString() : data.uploadedAt;
+            return {
+                id: doc.id,
+                ...data,
+                uploadedAt,
+            } as PaymentProof
+        });
         setProofs(proofsData);
         setIsProofsLoading(false);
     }, (error) => {
@@ -334,7 +343,7 @@ export default function TenantDetailPage() {
 
   return (
     <div className="space-y-6">
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button variant="outline" onClick={() => router.push('/tenants')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Tenants
         </Button>
@@ -454,7 +463,7 @@ export default function TenantDetailPage() {
                                 {proofs.map(proof => (
                                     <TableRow key={proof.id}>
                                         <TableCell className="text-xs font-medium">
-                                            {formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true })}
+                                            {proof.uploadedAt ? formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true }) : 'N/A'}
                                         </TableCell>
                                         <TableCell>
                                             <p className="text-sm font-medium flex items-center gap-2">
