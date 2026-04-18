@@ -69,6 +69,29 @@ function ProofStatusBadge({ status }: { status: PaymentProofStatus }) {
   );
 }
 
+// Safely formats a date from various possible inputs (Timestamp, string, etc.)
+function safeFormatDistanceToNow(dateInput: any): string {
+    if (!dateInput) return 'N/A';
+
+    let date: Date;
+    // Handle Firestore Timestamp object which has a toDate method
+    if (dateInput && typeof dateInput.toDate === 'function') {
+        date = dateInput.toDate();
+    } else {
+        // Handle ISO string, number, or other date-constructible values
+        date = new Date(dateInput);
+    }
+
+    // Check if the created date is valid
+    if (isNaN(date.getTime())) {
+        // If it's not a valid date, it might be a string we can show.
+        if (typeof dateInput === 'string') return dateInput;
+        return 'Invalid Date';
+    }
+
+    return formatDistanceToNow(date, { addSuffix: true });
+}
+
 
 export default function TenantDetailPage() {
   const params = useParams();
@@ -119,16 +142,10 @@ export default function TenantDetailPage() {
 
     const proofsQuery = query(collection(firestore, 'tenants', tenantId, 'payment_proofs'), orderBy('uploadedAt', 'desc'));
     const unsubProofs = onSnapshot(proofsQuery, (snapshot) => {
-        const proofsData = snapshot.docs.map(doc => {
-            const data = doc.data();
-            // Firestore timestamps can be objects. Convert to a string if needed.
-            const uploadedAt = data.uploadedAt?.toDate ? data.uploadedAt.toDate().toISOString() : data.uploadedAt;
-            return {
-                id: doc.id,
-                ...data,
-                uploadedAt,
-            } as PaymentProof
-        });
+        const proofsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+        } as PaymentProof));
         setProofs(proofsData);
         setIsProofsLoading(false);
     }, (error) => {
@@ -463,7 +480,7 @@ export default function TenantDetailPage() {
                                 {proofs.map(proof => (
                                     <TableRow key={proof.id}>
                                         <TableCell className="text-xs font-medium">
-                                            {proof.uploadedAt ? formatDistanceToNow(new Date(proof.uploadedAt), { addSuffix: true }) : 'N/A'}
+                                            {safeFormatDistanceToNow(proof.uploadedAt)}
                                         </TableCell>
                                         <TableCell>
                                             <p className="text-sm font-medium flex items-center gap-2">

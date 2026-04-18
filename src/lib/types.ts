@@ -33,7 +33,7 @@ export type PaymentProof = {
   id: string;
   tenantId: string;
   amountInWords: string;
-  uploadedAt: string; // ISO date string
+  uploadedAt: any; // Can be an ISO date string or a Firestore Timestamp
   status: PaymentProofStatus;
   adminNotes?: string;
 };
