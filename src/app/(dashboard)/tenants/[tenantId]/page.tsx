@@ -3,11 +3,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-<<<<<<< HEAD
-import { doc, onSnapshot, updateDoc, getDoc, collection, addDoc, serverTimestamp, writeBatch, Timestamp } from 'firebase/firestore';
-=======
-import { doc, onSnapshot, updateDoc, getDoc, deleteDoc, collection, query, orderBy, writeBatch } from 'firebase/firestore';
->>>>>>> l
+import { doc, onSnapshot, updateDoc, getDoc, deleteDoc, collection, query, orderBy, writeBatch, QueryDocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
 import { useFirestore, useAuth } from '@/firebase';
 import type { Tenant, Property, TenantWithDetails, PaymentStatus, PaymentProof, PaymentProofStatus } from '@/lib/types';
 import { Loader2, ArrowLeft, User, Building, Calendar, Phone, Check, X, LogOut, UserCheck, Trash2, Clock, ThumbsUp, ThumbsDown, History, PlusCircle, MessageSquare } from 'lucide-react';
@@ -19,58 +15,6 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-<<<<<<< HEAD
-
-function getPaymentStatus(tenant: Tenant): { status: PaymentStatus, dueDate: Date } {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const leaseStart = new Date(tenant.leaseStartDate);
-    leaseStart.setHours(0, 0, 0, 0);
-
-    const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(0); // Use epoch if never paid
-    lastPaid.setHours(0, 0, 0, 0);
-
-    // Determine the start of the current payment cycle
-    let cycleStart;
-    const paymentDay = tenant.paymentDay;
-
-    if (today.getDate() >= paymentDay) {
-        // We are in the cycle for the current month
-        cycleStart = new Date(today.getFullYear(), today.getMonth(), paymentDay);
-    } else {
-        // We are in the cycle for the previous month
-        cycleStart = new Date(today.getFullYear(), today.getMonth() - 1, paymentDay);
-    }
-
-    // Ensure cycle doesn't start before the lease
-    if (cycleStart < leaseStart) {
-        // If the calculated cycle start is before the lease, the first due date is based on the lease start month
-        cycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), paymentDay);
-        if (leaseStart.getDate() > paymentDay) {
-             cycleStart.setMonth(cycleStart.getMonth()+1)
-        }
-    }
-
-    // Determine the due date for the current cycle
-    const currentDueDate = new Date(cycleStart);
-
-    // Determine next month's due date
-    const nextDueDate = new Date(cycleStart);
-    nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-
-
-    if (lastPaid.getTime() >= cycleStart.getTime()) {
-        return { status: 'Paid', dueDate: nextDueDate };
-    }
-
-    if (today.getTime() >= currentDueDate.getTime()) {
-        return { status: 'Overdue', dueDate: currentDueDate };
-    }
-    
-    return { status: 'Upcoming', dueDate: currentDueDate };
-}
-=======
 import { getPaymentStatus } from '@/lib/data-helpers';
 import {
   AlertDialog,
@@ -85,7 +29,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
->>>>>>> l
 
 
 function StatusBadge({ status }: { status: PaymentStatus }) {
@@ -199,18 +142,23 @@ export default function TenantDetailPage() {
     });
 
     const proofsQuery = query(collection(firestore, 'tenants', tenantId, 'payment_proofs'), orderBy('uploadedAt', 'desc'));
-    const unsubProofs = onSnapshot(proofsQuery, (snapshot) => {
-        const proofsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        } as PaymentProof));
-        setProofs(proofsData);
-        setIsProofsLoading(false);
-    }, (error) => {
-        const permissionError = new FirestorePermissionError({ path: `tenants/${tenantId}/payment_proofs`, operation: 'list' }, auth);
-        errorEmitter.emit('permission-error', permissionError);
-        setIsProofsLoading(false);
-    });
+    const unsubProofs = onSnapshot(
+        proofsQuery,
+        { includeMetadataChanges: false },
+        (snapshot) => {
+            const proofsData = snapshot.docs.map((proofDoc) => ({
+                ...(proofDoc.data() as PaymentProof),
+                id: proofDoc.id,
+            } as PaymentProof));
+            setProofs(proofsData);
+            setIsProofsLoading(false);
+        },
+        (error: any) => {
+            const permissionError = new FirestorePermissionError({ path: `tenants/${tenantId}/payment_proofs`, operation: 'list' }, auth);
+            errorEmitter.emit('permission-error', permissionError);
+            setIsProofsLoading(false);
+        }
+    );
 
     return () => {
         unsubTenant();
@@ -220,74 +168,35 @@ export default function TenantDetailPage() {
 
 
   const handleMarkAsPaid = async () => {
-<<<<<<< HEAD
     if (!firestore || !tenantId || !tenantDetails) return;
-    
+
     if (tenantDetails.paymentStatus === 'Paid') {
-        toast({
-            variant: 'destructive',
-            title: 'Already Paid',
-            description: `${tenantDetails.name} has already paid for the current cycle.`,
-        });
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Already Paid',
+        description: `${tenantDetails.name} has already paid for the current cycle.`,
+      });
+      return;
     }
 
     setIsUpdating(true);
-
-    try {
-        const batch = writeBatch(firestore);
-        
-        // 1. Update the tenant's lastPaidDate
-        const tenantRef = doc(firestore, 'tenants', tenantId);
-        const newLastPaidDate = new Date().toISOString();
-        batch.update(tenantRef, { lastPaidDate: newLastPaidDate });
-
-        // 2. Create a new payment record
-        const paymentRef = doc(collection(firestore, 'payments'));
-        const newPayment = {
-            tenantId: tenantId,
-            propertyId: tenantDetails.property.id,
-            amount: tenantDetails.rentAmount,
-            paymentDate: tenantDetails.dueDate.toISOString(), // The date the payment was for
-            recordedAt: Timestamp.now(),
-            tenantName: tenantDetails.name,
-            propertyName: tenantDetails.property.name,
-        };
-        batch.set(paymentRef, newPayment);
-        
-        await batch.commit();
-
-        toast({
-            title: 'Payment Recorded',
-            description: `Marked ${tenantDetails.name}'s rent as paid and created a history record.`,
-        });
-
-    } catch(e) {
-        console.error(e);
-        const permissionError = new FirestorePermissionError({
-            path: `tenants/${tenantId} or payments`,
-            operation: 'write',
-=======
-    if (!firestore || !tenantId) return;
-    setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
-    
+
     try {
-        await updateDoc(tenantRef, { lastPaidDate: new Date().toISOString() });
-        toast({
-            title: 'Payment Recorded',
-            description: `${tenantDetails?.name} has been marked as paid.`,
-        });
+      await updateDoc(tenantRef, { lastPaidDate: new Date().toISOString() });
+      toast({
+        title: 'Payment Recorded',
+        description: `${tenantDetails.name} has been marked as paid.`,
+      });
     } catch (e) {
-        const permissionError = new FirestorePermissionError({
-            path: tenantRef.path,
-            operation: 'update',
-            requestResourceData: { lastPaidDate: '...' },
->>>>>>> l
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
+      const permissionError = new FirestorePermissionError({
+        path: tenantRef.path,
+        operation: 'update',
+        requestResourceData: { lastPaidDate: '...' },
+      }, auth);
+      errorEmitter.emit('permission-error', permissionError);
     } finally {
-        setIsUpdating(false);
+      setIsUpdating(false);
     }
   };
 
@@ -349,35 +258,25 @@ export default function TenantDetailPage() {
 
   const handleRevertPayment = async () => {
     if (!firestore || !tenantId || !tenantDetails) return;
-    
+
     setIsUpdating(true);
     const tenantRef = doc(firestore, 'tenants', tenantId);
-    
+
     try {
-<<<<<<< HEAD
-        // In a real app, you might also want to find and delete the corresponding payment record.
-        // For now, we will just revert the status.
-        await updateDoc(tenantRef, { lastPaidDate: revertDate.toISOString() });
-        toast({
-            title: 'Payment Reverted',
-            description: `Reverted last payment for ${tenantDetails.name}. Payment history may need manual correction.`,
-=======
-        // Reverting sets the lastPaidDate to the lease start date, ensuring they become 'Overdue' or 'Upcoming'.
-        await updateDoc(tenantRef, { lastPaidDate: tenantDetails.leaseStartDate });
-        toast({
-            title: 'Payment Reverted',
-            description: `Last payment for ${tenantDetails.name} has been reverted.`,
->>>>>>> l
-        });
+      await updateDoc(tenantRef, { lastPaidDate: tenantDetails.leaseStartDate });
+      toast({
+        title: 'Payment Reverted',
+        description: `Last payment for ${tenantDetails.name} has been reverted.`,
+      });
     } catch(e) {
-         const permissionError = new FirestorePermissionError({
-            path: tenantRef.path,
-            operation: 'update',
-            requestResourceData: { lastPaidDate: tenantDetails.leaseStartDate },
-        }, auth);
-        errorEmitter.emit('permission-error', permissionError);
+      const permissionError = new FirestorePermissionError({
+        path: tenantRef.path,
+        operation: 'update',
+        requestResourceData: { lastPaidDate: tenantDetails.leaseStartDate },
+      }, auth);
+      errorEmitter.emit('permission-error', permissionError);
     } finally {
-        setIsUpdating(false);
+      setIsUpdating(false);
     }
   }
   

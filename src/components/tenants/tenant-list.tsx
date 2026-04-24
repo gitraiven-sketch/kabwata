@@ -396,7 +396,7 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   );
 }
 
-export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDetails[] }) {
+export function TenantList({ tenants: initialTenants }: { tenants: Tenant[] }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const firestore = useFirestore();
   const auth = useAuth();
