@@ -138,6 +138,11 @@ dist
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
+# next.js
+/.next/
+**/.next/
+/out/
+
 # testing
 /coverage
 

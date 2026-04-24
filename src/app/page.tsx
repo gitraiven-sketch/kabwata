@@ -1,6 +1,12 @@
-import { redirect } from 'next/navigation'
+'use client';
+
+import DashboardLayout from './(dashboard)/layout';
+import DashboardPage from './(dashboard)/page';
 
 export default function Home() {
-  redirect('/dashboard')
-  return null
+  return (
+    <DashboardLayout>
+      <DashboardPage />
+    </DashboardLayout>
+  );
 }

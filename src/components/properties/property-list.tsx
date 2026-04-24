@@ -39,54 +39,19 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-
-function getDueDate(tenant: Tenant): Date {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today to the start of the day
-
-    const lastPaid = tenant.lastPaidDate ? new Date(tenant.lastPaidDate) : new Date(tenant.leaseStartDate);
-    
-    const leaseStart = new Date(tenant.leaseStartDate);
-
-    // Determine the most recent payment cycle start date before or on today
-    let currentCycleStart = new Date(today.getFullYear(), today.getMonth(), tenant.paymentDay);
-    if (today.getDate() < tenant.paymentDay) {
-        // We are in the previous month's payment cycle
-        currentCycleStart.setMonth(currentCycleStart.getMonth() - 1);
-    }
-    
-    // Ensure the cycle start is not before the lease start
-    if (currentCycleStart < leaseStart) {
-        currentCycleStart = new Date(leaseStart.getFullYear(), leaseStart.getMonth(), tenant.paymentDay);
-        if(leaseStart.getDate() > tenant.paymentDay) {
-            currentCycleStart.setMonth(currentCycleStart.getMonth() + 1)
-        }
-    }
-    
-    const nextDueDate = new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay);
-    if(today >= nextDueDate) {
-         nextDueDate.setMonth(nextDueDate.getMonth() + 1);
-    }
-
-
-    if (lastPaid >= currentCycleStart) {
-        return nextDueDate;
-    }
-
-    if (today >= new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay)) {
-         const overdueDueDate = new Date(currentCycleStart.getFullYear(), currentCycleStart.getMonth(), tenant.paymentDay);
-         return overdueDueDate;
-    }
-    
-    return nextDueDate;
-}
+import { usePageHeader } from '@/context/page-header-context';
+import { getPaymentStatus } from '@/lib/data-helpers';
+import { cn } from '@/lib/utils';
+import { Badge } from '../ui/badge';
 
 function PropertyForm({
   property,
   onSave,
+  asIcon
 }: {
   property?: Property;
   onSave: () => void;
+  asIcon?: boolean;
 }) {
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -96,7 +61,15 @@ function PropertyForm({
   
   const isEditMode = !!property;
 
-  const [formData, setFormData] = React.useState(
+  const [formData, setFormData] = React.useState<Property | {
+    name: string;
+    group: string;
+    shopNumber: number;
+    startShopNumber: number;
+    endShopNumber: number;
+    address: string;
+    paymentDay: number;
+  }>(
     property || {
       name: '',
       group: 'Group A',
@@ -154,7 +127,15 @@ function PropertyForm({
                 description: `${formData.name} has been successfully updated.`,
             });
         } else {
-            const { startShopNumber, endShopNumber, group, address, paymentDay } = formData;
+            const { startShopNumber, endShopNumber, group, address, paymentDay } = formData as {
+              name: string;
+              group: string;
+              shopNumber: number;
+              startShopNumber: number;
+              endShopNumber: number;
+              address: string;
+              paymentDay: number;
+            };
             if (startShopNumber <= 0 || endShopNumber <= 0 || endShopNumber < startShopNumber) {
                 toast({ variant: 'destructive', title: 'Invalid Shop Range', description: 'Please enter a valid start and end shop number.'});
                 setIsLoading(false);
@@ -203,6 +184,10 @@ function PropertyForm({
       <DialogTrigger asChild>
         {isEditMode ? (
             <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Edit</DropdownMenuItem>
+        ) : asIcon ? (
+            <Button variant="ghost" size="icon" aria-label="Add Property">
+                <PlusCircle className="h-5 w-5" />
+            </Button>
         ) : (
             <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -228,11 +213,11 @@ function PropertyForm({
                 <>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="startShopNumber" className="text-right">Start Shop</Label>
-                        <Input id="startShopNumber" name="startShopNumber" type="number" value={formData.startShopNumber} onChange={handleChange} required className="col-span-3" />
+                        <Input id="startShopNumber" name="startShopNumber" type="number" value={(formData as any).startShopNumber} onChange={handleChange} required className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="endShopNumber" className="text-right">End Shop</Label>
-                        <Input id="endShopNumber" name="endShopNumber" type="number" value={formData.endShopNumber} onChange={handleChange} required className="col-span-3" />
+                        <Input id="endShopNumber" name="endShopNumber" type="number" value={(formData as any).endShopNumber} onChange={handleChange} required className="col-span-3" />
                     </div>
                 </>
              )}
@@ -279,6 +264,25 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
+  const { setActions } = usePageHeader();
+
+   React.useEffect(() => {
+    setActions(
+      <>
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search shop, or tenant..."
+            className="h-9 pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <PropertyForm onSave={() => {}} asIcon={true} />
+      </>
+    );
+    return () => setActions(null);
+  }, [setActions, searchTerm]);
 
   React.useEffect(() => {
     if (!firestore || !auth) {
@@ -340,13 +344,15 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
 
 
   const propertyGroups = React.useMemo(() => {
-    const groups = new Set(properties.map(p => p.group));
+    const groups = new Set(properties.map(p => p.group || 'Unknown').filter(g => g));
     return ['all', ...Array.from(groups).sort()];
   }, [properties]);
 
   const tenantsByPropertyId = React.useMemo(() => {
     return tenants.reduce((acc, tenant) => {
-        acc[tenant.propertyId] = tenant;
+        if (tenant && tenant.propertyId && !tenant.isArchived) {
+            acc[tenant.propertyId] = tenant;
+        }
         return acc;
     }, {} as Record<string, Tenant>);
   }, [tenants]);
@@ -355,52 +361,47 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
     (property) => {
       const tenant = tenantsByPropertyId[property.id];
       const tenantName = tenant ? tenant.name : '';
-      const matchesSearch = property.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            property.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            tenantName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (property.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                            (property.shopNumber?.toString() || '').includes(searchTerm.toLowerCase()) ||
+                            (tenantName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
       const matchesTab = activeTab === 'all' || property.group === activeTab;
       return matchesSearch && matchesTab;
     }
-  ).sort((a, b) => a.shopNumber - b.shopNumber);
+  ).sort((a, b) => (a.group.localeCompare(b.group)) || (a.shopNumber - b.shopNumber));
 
   return (
-    <div className="space-y-4">
-      <div className="sticky top-[57px] z-10 space-y-4 bg-background pb-4 pt-2">
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by shop or tenant..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <PropertyForm onSave={() => { /* No-op, handled by snapshot */ }} />
-        </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            {propertyGroups.map(group => (
-              <TabsTrigger key={group} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <div className="sticky top-[64px] z-10 space-y-4 border-b bg-background/95 pb-4 pt-2 backdrop-blur-sm">
+        <TabsList>
+          {propertyGroups.map(group => (
+            <TabsTrigger key={group || `group-${Math.random()}`} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
+          ))}
+        </TabsList>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <div className="pt-6">
         <TabsContent value={activeTab} className="mt-0">
-           {isLoading ? (
+            {isLoading ? (
                 <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-           ) : filteredProperties.length > 0 ? (
+            ) : filteredProperties.length > 0 ? (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredProperties.map((property) => {
                 const tenant = tenantsByPropertyId[property.id];
-                const dueDate = tenant ? getDueDate(tenant) : null;
-                const isOverdue = dueDate ? new Date() > dueDate : false;
+                const { status: paymentStatus, dueDate } = tenant ? getPaymentStatus(tenant) : { status: null, dueDate: null };
                 
                 return (
-                  <Card key={property.id} className="overflow-hidden flex flex-col">
+                  <Card 
+                    key={property.id || `property-${Math.random()}`} 
+                    className={cn(
+                        "overflow-hidden flex flex-col transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1",
+                        {
+                          'bg-primary text-primary-foreground': paymentStatus === 'Paid',
+                          'bg-destructive text-destructive-foreground': paymentStatus === 'Overdue',
+                          'bg-background': !tenant,
+                        }
+                    )}
+                  >
                      <div className="relative flex h-40 w-full items-center justify-center bg-muted">
                       <Building className="h-16 w-16 text-muted-foreground/50" />
                        <div className="absolute top-2 right-2">
@@ -428,24 +429,39 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                       <CardTitle>{property.name}</CardTitle>
                     </CardHeader>
                     <CardContent className="flex-grow space-y-2">
-                      {tenant && dueDate ? (
+                      {tenant && paymentStatus ? (
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                              <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                          <Avatar className="h-9 w-9 border-2 border-white/50">
+                              <AvatarFallback className={cn({
+                                'bg-white/20 text-primary-foreground': paymentStatus === 'Paid',
+                                'bg-white/20 text-destructive-foreground': paymentStatus === 'Overdue',
+                              })}>
+                                <User className="h-4 w-4" />
+                              </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{tenant.name}</div>
-                            <div className={`text-xs ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                {isOverdue ? 'Overdue' : 'Due'} {formatDistanceToNow(dueDate, { addSuffix: true })}
+                            <div className="font-medium text-base">{tenant.name}</div>
+                            <div className={cn('text-xs', {
+                                'text-primary-foreground/80': paymentStatus === 'Paid',
+                                'text-destructive-foreground/80': paymentStatus === 'Overdue',
+                            })}>
+                                {paymentStatus === 'Overdue' ? 'Overdue' : 'Due'}{' '}
+                                {dueDate instanceof Date && !isNaN(dueDate.getTime())
+                                    ? formatDistanceToNow(dueDate, { addSuffix: true })
+                                    : 'N/A'}
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="font-semibold text-primary">Vacant</div>
+                        <Badge variant="outline" className="border-2 text-base font-semibold">Vacant</Badge>
                       )}
                     </CardContent>
                      <CardFooter>
-                        <p className="text-sm text-muted-foreground">Pay Day: {property.paymentDay}</p>
+                        <p className={cn('text-sm', {
+                            'text-primary-foreground/80': paymentStatus === 'Paid',
+                            'text-destructive-foreground/80': paymentStatus === 'Overdue',
+                            'text-muted-foreground': !tenant,
+                        })}>Pay Day: {property.paymentDay}</p>
                     </CardFooter>
                   </Card>
                 )
@@ -458,7 +474,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
             </div>
           )}
         </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+    </Tabs>
   );
 }

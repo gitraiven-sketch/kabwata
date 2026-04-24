@@ -6,17 +6,15 @@
  * - SendAdminNoticeInput - The input type for the function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai';
+import { z } from 'zod';
 import { generateAdminOverdueNotice, type AdminOverdueNoticeInput, type AdminOverdueNoticeOutput } from './admin-overdue-notice';
-
 
 const SendAdminNoticeInputSchema = z.object({
   to: z.string().email().describe('The email address of the recipient.'),
   overdueTenants: z.array(z.object({
       tenantName: z.string(),
       propertyName: z.string(),
-      rentAmount: z.number(),
       daysOverdue: z.string(),
   })),
   totalOverdue: z.number(),

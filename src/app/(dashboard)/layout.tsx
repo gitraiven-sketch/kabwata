@@ -1,3 +1,4 @@
+'use client';
 
 import {
   SidebarProvider,
@@ -17,8 +18,11 @@ import {
   History,
 } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import AuthGuard from '@/components/auth/auth-guard';
 import { UserNav } from '@/components/auth/user-nav';
+import { cn } from '@/lib/utils';
+import { PageHeaderProvider, usePageHeader } from '@/context/page-header-context';
 
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -27,7 +31,7 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
       xmlns="http://www.w3.org/2000/svg"
       width="24"
       height="24"
-      viewBox="0 0 24 24"
+      viewBox="0 0 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
@@ -43,6 +47,81 @@ function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+const navItems = [
+  { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/tenants', icon: Users, label: 'Tenants' },
+  { href: '/properties', icon: Building, label: 'Properties' },
+  { href: '/reminders', icon: Bell, label: 'Reminders' },
+];
+
+function LayoutInternal({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { actions } = usePageHeader();
+  const showActions = ['/tenants', '/properties'].includes(pathname);
+  
+  return (
+      <div className="flex min-h-screen flex-col">
+        {/* Top Header for all screen sizes */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
+          <Link href="/" className="flex items-center gap-2 font-semibold">
+            <BuildingIcon className="h-7 w-7 text-primary" />
+            <span className="hidden text-lg tracking-tight sm:inline">Kabwata</span>
+          </Link>
+          
+          {/* Desktop Navigation (hidden on mobile) */}
+          <nav className="hidden h-full flex-1 items-center md:flex">
+            <ul className="flex h-full items-center gap-6 pl-6 text-sm font-medium">
+              {navItems.map((item) => (
+                <li key={item.href} className="h-full">
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex h-full items-center border-b-2 px-1 pt-1",
+                      pathname === item.href
+                        ? 'border-primary text-primary'
+                        : 'border-transparent text-muted-foreground hover:border-gray-300 hover:text-foreground'
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          
+          <div className="ml-auto flex items-center gap-2">
+            {showActions && actions}
+            <UserNav />
+          </div>
+        </header>
+
+        {/* Main content area */}
+        <main className="flex-1 p-4 pb-20 sm:p-6 md:pb-6">{children}</main>
+
+        {/* Bottom Navigation for mobile/tablet */}
+        <nav className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 backdrop-blur-sm md:hidden">
+          <div className="grid h-16 grid-cols-4">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex flex-col items-center justify-center gap-1 p-2 text-xs transition-colors',
+                  pathname === item.href
+                    ? 'text-primary bg-primary/10'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-primary'
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </nav>
+      </div>
+  );
+}
+
 
 export default function DashboardLayout({
   children,
@@ -51,89 +130,9 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthGuard>
-      <SidebarProvider>
-        <div className="flex min-h-screen">
-          <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-            <SidebarContent>
-              <SidebarHeader>
-                <Link
-                  href="/"
-                  className="flex items-center gap-2 text-primary-foreground hover:text-primary-foreground/80"
-                >
-                  <BuildingIcon className="h-7 w-7 text-primary" />
-                  <span className="text-lg font-semibold tracking-tight">Kabwata</span>
-                </Link>
-              </SidebarHeader>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={{ children: 'Dashboard', side: 'right' }}
-                  >
-                    <Link href="/dashboard">
-                      <LayoutDashboard />
-                      <span>Dashboard</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={{ children: 'Tenants', side: 'right' }}
-                  >
-                    <Link href="/tenants">
-                      <Users />
-                      <span>Tenants</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={{ children: 'Properties', side: 'right' }}
-                  >
-                    <Link href="/properties">
-                      <Building />
-                      <span>Properties</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={{ children: 'Reminders', side: 'right' }}
-                  >
-                    <Link href="/reminders">
-                      <Bell />
-                      <span>Reminders</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip={{ children: 'Payment History', side: 'right' }}
-                  >
-                    <Link href="/history">
-                      <History />
-                      <span>Payment History</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarContent>
-          </Sidebar>
-          <SidebarInset className="flex-1">
-            <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
-              <div className="relative flex-1">
-                 {/* Search bar can be added here if needed globally */}
-              </div>
-              <UserNav />
-            </header>
-            <main className="flex-1 p-4 sm:p-6">{children}</main>
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
+      <PageHeaderProvider>
+        <LayoutInternal>{children}</LayoutInternal>
+      </PageHeaderProvider>
     </AuthGuard>
   );
 }

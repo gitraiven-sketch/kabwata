@@ -10,6 +10,10 @@
           "type": "string",
           "description": "The unique identifier for the tenant."
         },
+        "uid": {
+            "type": "string",
+            "description": "The Firebase Auth UID of the tenant's user account, linking their login to their tenant record."
+        },
         "name": {
           "type": "string",
           "description": "The name of the tenant."
@@ -21,10 +25,6 @@
         "propertyId": {
           "type": "string",
           "description": "The ID of the property the tenant is renting."
-        },
-        "rentAmount": {
-          "type": "number",
-          "description": "The amount of rent due."
         },
         "paymentDay": {
           "type": "number",
@@ -39,13 +39,16 @@
           "type": "string",
           "format": "date-time",
           "description": "The last date a payment was recorded for this tenant."
+        },
+        "isArchived": {
+            "type": "boolean",
+            "description": "Whether the tenant's lease has ended. Archived tenants are hidden from active lists."
         }
       },
       "required": [
         "name",
         "phone",
         "propertyId",
-        "rentAmount",
         "paymentDay",
         "leaseStartDate"
       ]
@@ -76,6 +79,7 @@
             }
         },
         "required": ["name", "group", "shopNumber", "address", "paymentDay"]
+    },
     },
     "Payment": {
       "title": "Payment",
@@ -118,6 +122,21 @@
         }
       },
       "required": ["tenantId", "propertyId", "amount", "paymentDate", "recordedAt", "tenantName", "propertyName"]
+    },
+    "PaymentProof": {
+        "title": "Payment Proof",
+        "description": "A record of a tenant's submitted payment amount in words.",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string" },
+            "tenantId": { "type": "string" },
+            "amountInWords": { "type": "string", "description": "The amount paid, submitted in words by the tenant." },
+            "uploadedAt": { "type": "string", "format": "date-time" },
+            "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+            "adminNotes": { "type": "string" }
+        },
+        "required": ["tenantId", "amountInWords", "uploadedAt", "status"]
+    }
     }
   },
   "auth": {
@@ -131,6 +150,12 @@
         "$ref": "#/entities/Tenant"
       },
       "description": "Collection of all tenants."
+    },
+    "/tenants/{tenantId}/payment_proofs/{proofId}": {
+      "schema": {
+        "$ref": "#/entities/PaymentProof"
+      },
+      "description": "Collection of payment proofs submitted by a tenant."
     },
     "/properties/{propertyId}": {
         "schema": {

@@ -44,7 +44,7 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
       const result = await generateSingleRentReminder({
         tenantName: tenant.name,
         propertyName: tenant.property.name,
-        dueDate: format(tenant.dueDate, 'do MMMM, yyyy'),
+        dueDate: tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime()) ? format(tenant.dueDate, 'do MMMM, yyyy') : 'N/A',
         phoneNumber: tenant.phone,
         dueDateProximity: proximity,
       });
@@ -72,14 +72,18 @@ function TenantReminderCard({ tenant, proximity }: { tenant: TenantWithDetails, 
   };
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col break-inside-avoid">
       <CardHeader className="flex-row items-start justify-between gap-4 pb-4">
         <div>
            <CardTitle className="text-base">{tenant.name}</CardTitle>
           <CardDescription className="flex items-center gap-1 text-xs"><Building className="h-3 w-3" />{tenant.property.name}</CardDescription>
         </div>
          <div className="text-right">
-            <div className="text-sm text-muted-foreground">{format(tenant.dueDate, 'do MMM')}</div>
+            <div className="text-sm text-muted-foreground">
+                {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                    ? format(tenant.dueDate, 'do MMM')
+                    : 'N/A'}
+            </div>
         </div>
       </CardHeader>
        <CardContent className="flex-grow space-y-2">
@@ -119,8 +123,7 @@ function OverdueAdminReminder({ overdueTenants }: { overdueTenants: TenantWithDe
       const overdueDetails = overdueTenants.map(t => ({
         tenantName: t.name,
         propertyName: t.property.name,
-        rentAmount: t.rentAmount,
-        daysOverdue: formatDistanceToNowStrict(t.dueDate, { addSuffix: true }),
+        daysOverdue: t.dueDate instanceof Date && !isNaN(t.dueDate.getTime()) ? formatDistanceToNowStrict(t.dueDate, { addSuffix: true }) : 'N/A',
       }));
 
       await sendAdminOverdueNotice({
@@ -181,7 +184,7 @@ function ReminderCategory({ title, tenants, proximity }: { title: string, tenant
       </AccordionTrigger>
       <AccordionContent>
         {tenants.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3">
             {tenants.map(tenant => (
               <TenantReminderCard key={tenant.id} tenant={tenant} proximity={proximity}/>
             ))}
@@ -215,4 +218,39 @@ export function CategorizedRentReminders({ categorizedTenants }: { categorizedTe
       </Accordion>
     </div>
   );
+}
+
+export function RentReminder({ tenants }: { tenants: TenantWithDetails[] }) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  const categorizedTenants: CategorizedTenants = {
+    dueIn3Days: [],
+    dueIn2Days: [],
+    dueIn1Day: [],
+    dueToday: [],
+    overdue: [],
+  };
+
+  tenants.forEach((tenant) => {
+    if (!(tenant.dueDate instanceof Date) || isNaN(tenant.dueDate.getTime())) return;
+    
+    const dueDate = new Date(tenant.dueDate.getFullYear(), tenant.dueDate.getMonth(), tenant.dueDate.getDate());
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      categorizedTenants.overdue.push(tenant);
+    } else if (diffDays === 0) {
+      categorizedTenants.dueToday.push(tenant);
+    } else if (diffDays === 1) {
+      categorizedTenants.dueIn1Day.push(tenant);
+    } else if (diffDays === 2) {
+      categorizedTenants.dueIn2Days.push(tenant);
+    } else if (diffDays === 3) {
+      categorizedTenants.dueIn3Days.push(tenant);
+    }
+  });
+
+  return <CategorizedRentReminders categorizedTenants={categorizedTenants} />;
 }

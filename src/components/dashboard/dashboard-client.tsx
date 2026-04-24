@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -16,8 +15,8 @@ import {
   Building,
   Home,
   CheckCircle,
-  Clock,
   AlertCircle,
+  Clock,
 } from 'lucide-react';
 import {
   ChartContainer,
@@ -56,7 +55,7 @@ const chartConfig: ChartConfig = {
     label: 'Upcoming',
     color: 'hsl(var(--chart-2))',
     icon: Clock,
-  },
+  }
 };
 
 export function DashboardClient() {
@@ -72,16 +71,16 @@ export function DashboardClient() {
   useEffect(() => {
     if (!firestore || !auth) return;
 
-    const tenantsRef = collection(firestore, 'tenants');
-    const propertiesRef = collection(firestore, 'properties');
-
-    const unsubTenants = onSnapshot(tenantsRef, async () => {
+    // A combined listener to react to changes in tenants or properties
+    const handleDataChange = async () => {
         try {
             const tenantsWithDetails = await getTenantsWithDetails();
-            const propSnapshot = await getDocs(propertiesRef);
+            const propSnapshot = await getDocs(collection(firestore, 'properties'));
 
             const statusCounts = tenantsWithDetails.reduce((acc, tenant) => {
-                acc[tenant.paymentStatus] = (acc[tenant.paymentStatus] || 0) + 1;
+                if(tenant.paymentStatus) {
+                    acc[tenant.paymentStatus] = (acc[tenant.paymentStatus] || 0) + 1;
+                }
                 return acc;
             }, {} as Record<PaymentStatus, number>);
 
@@ -102,28 +101,25 @@ export function DashboardClient() {
             if (e.message.includes('permission')) {
                 const permissionError = new FirestorePermissionError({ path: 'tenants or properties', operation: 'list' }, auth);
                 errorEmitter.emit('permission-error', permissionError);
+            } else {
+                console.error("DashboardClient error:", e);
             }
         }
-    }, (error) => {
-        const permissionError = new FirestorePermissionError({ path: tenantsRef.path, operation: 'list' }, auth);
+    };
+    
+    // Set up listeners
+    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), handleDataChange, (error) => {
+        const permissionError = new FirestorePermissionError({ path: 'tenants', operation: 'list' }, auth);
         errorEmitter.emit('permission-error', permissionError);
     });
 
-    const unsubProperties = onSnapshot(propertiesRef, async (propSnapshot) => {
-        const tenantsWithDetails = await getTenantsWithDetails();
-        const occupiedPropertyIds = new Set(tenantsWithDetails.map(t => t.propertyId));
-        const vacantCount = propSnapshot.docs.filter(doc => !occupiedPropertyIds.has(doc.id)).length;
-        
-        setData(prevData => ({
-            ...prevData, 
-            totalProperties: propSnapshot.size,
-            vacantProperties: vacantCount,
-        }));
-    }, (error) => {
-        const permissionError = new FirestorePermissionError({ path: propertiesRef.path, operation: 'list' }, auth);
+    const unsubProperties = onSnapshot(collection(firestore, 'properties'), handleDataChange, (error) => {
+        const permissionError = new FirestorePermissionError({ path: 'properties', operation: 'list' }, auth);
         errorEmitter.emit('permission-error', permissionError);
     });
 
+    // Initial fetch
+    handleDataChange();
 
     return () => {
         unsubTenants();
@@ -139,7 +135,7 @@ export function DashboardClient() {
   ].filter(item => item.value > 0);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Properties</CardTitle>

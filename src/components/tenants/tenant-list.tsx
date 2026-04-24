@@ -18,6 +18,11 @@ import {
   Loader2,
   Eye,
   Edit,
+  LogOut,
+  Building,
+  CalendarDays,
+  Phone,
+  UserCheck,
   Trash2,
 } from 'lucide-react';
 import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
@@ -50,61 +55,64 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { Input } from '@/components/ui/input';
 import { Button } from '../ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import Link from 'next/link';
-import { getTenantsWithDetails } from '@/lib/data-helpers';
+import { getPaymentStatus } from '@/lib/data-helpers';
+import { cn } from '@/lib/utils';
+import { usePageHeader } from '@/context/page-header-context';
 
 
-function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: () => void; properties: Property[], tenants: TenantWithDetails[] }) {
+function AddTenantForm({ onTenantAdded, properties, tenants, asIcon }: { onTenantAdded: () => void; properties: Property[], tenants: Tenant[], asIcon?: boolean }) {
   const firestore = useFirestore();
   const auth = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
-  const [propertyCode, setPropertyCode] = React.useState('');
-  
-  const occupiedPropertyIds = new Set(tenants.map(t => t.propertyId));
+  const [group, setGroup] = React.useState('');
+  const [shopNumberStr, setShopNumberStr] = React.useState('');
+
+  const occupiedPropertyIds = new Set(tenants.filter(t => !t.isArchived).map(t => t.propertyId));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!firestore || !auth) return;
 
-    if (!propertyCode) {
+    if (!group || !shopNumberStr) {
         toast({
             variant: 'destructive',
             title: 'Property Not Specified',
-            description: 'Please enter a property code (e.g., A1, B12).',
+            description: 'Please enter both a Group and a Shop Number.',
         });
         return;
     }
 
     setIsLoading(true);
 
-    const parsed = propertyCode.match(/^([A-C])(\d+)$/i);
-    if (!parsed) {
+    const groupName = `Group ${group.toUpperCase()}`;
+    const shopNumber = parseInt(shopNumberStr, 10);
+    
+    if (!/^[A-C]$/i.test(group)) {
         toast({
             variant: 'destructive',
-            title: 'Invalid Property Code',
-            description: 'Code must be a letter (A, B, C) followed by a number (e.g., C1).',
+            title: 'Invalid Group',
+            description: 'Group must be A, B, or C.',
         });
         setIsLoading(false);
         return;
     }
-    
-    const [, groupChar, shopNum] = parsed;
-    const groupName = `Group ${groupChar.toUpperCase()}`;
-    const shopNumber = parseInt(shopNum, 10);
+     if (isNaN(shopNumber) || shopNumber <= 0) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Shop Number',
+            description: 'Please enter a valid shop number.',
+        });
+        setIsLoading(false);
+        return;
+    }
 
     const property = properties.find(p => p.group === groupName && p.shopNumber === shopNumber);
 
@@ -112,7 +120,7 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
       toast({
         variant: 'destructive',
         title: 'Property Not Found',
-        description: `Property "${propertyCode.toUpperCase()}" could not be found.`,
+        description: `Property "${group.toUpperCase()}${shopNumber}" could not be found.`,
       });
       setIsLoading(false);
       return;
@@ -130,15 +138,16 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
 
     const formData = new FormData(event.currentTarget);
     const phone = (formData.get('phone') as string).replace(/^0/, '');
+    const leaseStartDate = formData.get('leaseStartDate') as string;
     
     const newTenantData = {
         name: formData.get('name') as string,
         phone: `+260${phone}`,
         propertyId: property.id,
-        rentAmount: 0,
         paymentDay: property.paymentDay || 1,
-        leaseStartDate: formData.get('leaseStartDate') as string,
-        lastPaidDate: new Date(formData.get('leaseStartDate') as string).toISOString(),
+        leaseStartDate: leaseStartDate,
+        lastPaidDate: leaseStartDate, // Set initial lastPaidDate to lease start
+        isArchived: false,
     };
 
     const tenantsRef = collection(firestore, 'tenants');
@@ -151,7 +160,8 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
         onTenantAdded();
         setOpen(false);
         (event.target as HTMLFormElement).reset();
-        setPropertyCode('');
+        setGroup('');
+        setShopNumberStr('');
       })
       .catch((error: any) => {
         const permissionError = new FirestorePermissionError({
@@ -169,10 +179,16 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Tenant
-        </Button>
+        {asIcon ? (
+            <Button variant="ghost" size="icon" aria-label="Add Tenant">
+                <PlusCircle className="h-5 w-5" />
+            </Button>
+        ) : (
+            <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Tenant
+            </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
@@ -201,15 +217,30 @@ function AddTenantForm({ onTenantAdded, properties, tenants }: { onTenantAdded: 
                 </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="propertyId" className="text-right">
-                Property
+              <Label htmlFor="group" className="text-right">
+                Group
               </Label>
               <Input 
-                id="propertyCode"
-                name="propertyCode"
-                placeholder="e.g. A1, C15"
-                value={propertyCode}
-                onChange={(e) => setPropertyCode(e.target.value)}
+                id="group"
+                name="group"
+                placeholder="e.g. A, B, or C"
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                required 
+                className="col-span-3" 
+              />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shopNumber" className="text-right">
+                Shop No.
+              </Label>
+              <Input 
+                id="shopNumber"
+                name="shopNumber"
+                type="number"
+                placeholder="e.g. 5, 12"
+                value={shopNumberStr}
+                onChange={(e) => setShopNumberStr(e.target.value)}
                 required 
                 className="col-span-3" 
               />
@@ -250,31 +281,48 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
+
+  const getSafeLeaseStart = (leaseDate: string | undefined) => {
+    if (leaseDate) {
+      try {
+        const parsedDate = parseISO(leaseDate);
+        if (!isNaN(parsedDate.getTime())) {
+          return format(parsedDate, 'yyyy-MM-dd');
+        }
+      } catch (e) {
+         // Invalid date format, fall through to default
+      }
+    }
+    return format(new Date(), 'yyyy-MM-dd');
+  };
   
   const [formData, setFormData] = React.useState({
-    name: tenant.name,
-    phone: tenant.phone.startsWith('+260') ? tenant.phone.substring(4) : tenant.phone,
-    leaseStartDate: tenant.leaseStartDate,
+    name: tenant.name || '',
+    phone: tenant.phone ? tenant.phone.replace('+260', '') : '',
+    leaseStartDate: getSafeLeaseStart(tenant.leaseStartDate),
   });
 
   React.useEffect(() => {
     if (open) {
       setFormData({
-        name: tenant.name,
-        phone: tenant.phone.startsWith('+260') ? tenant.phone.substring(4) : tenant.phone,
-        leaseStartDate: tenant.leaseStartDate,
+        name: tenant.name || '',
+        phone: tenant.phone ? tenant.phone.replace('+260', '') : '',
+        leaseStartDate: getSafeLeaseStart(tenant.leaseStartDate),
       });
     }
   }, [open, tenant]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ 
+        ...prev, 
+        [name]: value 
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!firestore || !auth) return;
+    if (!firestore || !auth || !tenant.id) return;
     setIsLoading(true);
 
     const tenantRef = doc(firestore, 'tenants', tenant.id);
@@ -316,7 +364,7 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Tenant</DialogTitle>
-            <DialogDescription>Update the details for {tenant.name}.</DialogDescription>
+            <DialogDescription>Update the details for {tenant.name || 'this tenant'}.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
@@ -348,42 +396,63 @@ function EditTenantForm({ tenant, onSave }: { tenant: Tenant, onSave: () => void
   );
 }
 
-
-function StatusBadge({ status }: { status: PaymentStatus }) {
-  const variant = {
-    Paid: 'success',
-    Overdue: 'destructive',
-    Upcoming: 'warning',
-  }[status] as 'success' | 'destructive' | 'warning';
-
-  return <Badge variant={variant}>{status}</Badge>;
-}
-
 export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDetails[] }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const firestore = useFirestore();
-  const [tenants, setTenants] = React.useState<TenantWithDetails[]>(initialTenants);
-  const [properties, setProperties] = React.useState<Property[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const auth = useAuth();
   const { toast } = useToast();
+  const { setActions } = usePageHeader();
+
+  const [tenants, setTenants] = React.useState<Tenant[]>([]);
+  const [properties, setProperties] = React.useState<Property[]>([]);
+  const [tenantsWithDetails, setTenantsWithDetails] = React.useState<TenantWithDetails[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  
+  React.useEffect(() => {
+    setActions(
+      <>
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search tenants..."
+            className="h-9 pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <AddTenantForm
+          properties={properties}
+          tenants={tenants}
+          onTenantAdded={() => {}}
+          asIcon={true}
+        />
+      </>
+    );
+
+    return () => setActions(null);
+  }, [setActions, searchTerm, properties, tenants]);
+
 
   React.useEffect(() => {
     if (!firestore) return;
 
-    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), async () => {
-      try {
-        const tenantDetails = await getTenantsWithDetails();
-        setTenants(tenantDetails);
-      } catch (error) {
-        console.error("Failed to fetch tenant details:", error);
-      } finally {
-        setIsLoading(false);
-      }
+    const unsubTenants = onSnapshot(collection(firestore, 'tenants'), (snapshot) => {
+      const tenantData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
+      setTenants(tenantData);
+      setIsLoading(false); // Let the next effect handle loading based on both tenants and props
+    }, (error) => {
+      console.error("Error fetching tenants:", error);
+      setIsLoading(false);
     });
 
     const unsubProps = onSnapshot(collection(firestore, 'properties'), (snapshot) => {
-        const props = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
-        setProperties(props);
+      const propsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Property));
+      setProperties(propsData);
+      setIsLoading(false); // Let the next effect handle loading
+    }, (error) => {
+        console.error("Error fetching properties:", error);
+        setIsLoading(false);
     });
 
     return () => {
@@ -393,29 +462,112 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
   }, [firestore]);
 
 
-  const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
-    if (!firestore) return;
-    try {
-        await deleteDoc(doc(firestore, 'tenants', tenantId));
+  React.useEffect(() => {
+    const propertyMap = new Map(properties.map(p => [p.id, p]));
+    
+    const details: TenantWithDetails[] = tenants
+    .map(tenant => {
+        const property = propertyMap.get(tenant.propertyId);
+        const { status, dueDate } = getPaymentStatus(tenant);
+        
+        return {
+            ...tenant,
+            property: property || { id: tenant.propertyId, name: 'Unknown Property', group: 'Unknown', shopNumber: 0, address: '', paymentDay: tenant.paymentDay },
+            paymentStatus: status,
+            dueDate: dueDate,
+        };
+    });
+
+    setTenantsWithDetails(details);
+
+  }, [tenants, properties]);
+
+
+ const handleMarkAsVacant = (tenantId: string, tenantName: string) => {
+     if (!firestore || !auth) return;
+    if (!tenantId) {
+        console.error("handleMarkAsVacant called with empty tenantId");
         toast({
-            title: 'Tenant Deleted',
-            description: `${tenantName} has been successfully removed.`,
+            variant: "destructive",
+            title: "Error",
+            description: "Cannot mark as vacant without a valid tenant ID.",
         });
-    } catch (error) {
-        console.error('Error deleting tenant:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Delete Failed',
-            description: 'Could not delete the tenant. You may not have the correct permissions.',
-        });
+        return;
     }
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+    
+    updateDoc(tenantRef, { isArchived: true })
+        .then(() => {
+            toast({
+                title: 'Tenant Marked as Vacant',
+                description: `${tenantName}'s lease is now marked as vacant.`,
+            });
+        })
+        .catch((error) => {
+            const permissionError = new FirestorePermissionError({
+                path: tenantRef.path,
+                operation: 'update',
+                requestResourceData: { isArchived: true },
+            }, auth);
+            errorEmitter.emit('permission-error', permissionError);
+        });
   }
+  
+  const handleReactivateTenant = (tenantId: string, tenantName: string) => {
+    if (!firestore || !auth) return;
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    // Reactivate and set as paid for the current cycle to avoid immediate overdue status.
+    updateDoc(tenantRef, { isArchived: false, lastPaidDate: new Date().toISOString() })
+        .then(() => {
+            toast({
+                title: 'Tenant Reactivated',
+                description: `${tenantName}'s lease is now active.`,
+            });
+        })
+        .catch((error) => {
+            const permissionError = new FirestorePermissionError({
+                path: tenantRef.path,
+                operation: 'update',
+                requestResourceData: { isArchived: false },
+            }, auth);
+            errorEmitter.emit('permission-error', permissionError);
+        });
+  };
+
+  const handleDeleteTenant = (tenantId: string, tenantName: string) => {
+    if (!firestore || !auth) return;
+    if (!tenantId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cannot delete tenant without a valid ID.",
+      });
+      return;
+    }
+    const tenantRef = doc(firestore, 'tenants', tenantId);
+
+    deleteDoc(tenantRef)
+      .then(() => {
+        toast({
+          title: 'Tenant Deleted',
+          description: `${tenantName} has been permanently deleted.`,
+        });
+      })
+      .catch((error) => {
+        const permissionError = new FirestorePermissionError({
+          path: tenantRef.path,
+          operation: 'delete',
+        }, auth);
+        errorEmitter.emit('permission-error', permissionError);
+      });
+  };
 
 
-  const filteredTenants = tenants.filter(
+  const filteredTenants = tenantsWithDetails.filter(
     (tenant) =>
-      tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tenant.property && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      (tenant.name && tenant.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (tenant.property && tenant.property.name && tenant.property.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
   
   const groupedTenants = React.useMemo(() => {
@@ -432,135 +584,211 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
 
   const groupOrder = ['Group A', 'Group B', 'Group C', 'Uncategorized'];
   
-  const defaultTab = groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+  const defaultTab = React.useMemo(() => {
+    return groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+  }, [groupedTenants]);
 
+  const [activeTab, setActiveTab] = React.useState(defaultTab);
+  
+  React.useEffect(() => {
+    const newDefaultTab = groupOrder.find(group => groupedTenants[group] && groupedTenants[group].length > 0) || groupOrder[0];
+    if (activeTab !== newDefaultTab && (!groupedTenants[activeTab] || groupedTenants[activeTab].length === 0)) {
+        setActiveTab(newDefaultTab);
+    }
+  }, [groupedTenants, activeTab, defaultTab]);
+  
   return (
-    <div className="space-y-4">
-        <div className="sticky top-[57px] z-10 space-y-4 bg-background pb-4 pt-2">
-            <div className="flex items-center justify-between gap-4">
-                <div className="relative w-full max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="Search tenants or properties..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                </div>
-                <AddTenantForm properties={properties} tenants={tenants} onTenantAdded={() => { /* data re-fetches automatically */ }} />
-            </div>
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="sticky top-[64px] z-10 border-b bg-background/95 py-2 backdrop-blur-sm">
+             <TabsList>
+                {groupOrder.map(groupName => {
+                if(groupedTenants[groupName] && groupedTenants[groupName].length > 0) {
+                    return <TabsTrigger key={groupName} value={groupName}>{groupName}</TabsTrigger>
+                }
+                return null;
+                })}
+            </TabsList>
         </div>
 
-       {isLoading ? (
+       <div className="pt-6">
+        {isLoading ? (
             <div className="flex h-64 w-full items-center justify-center rounded-lg border">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         ) : tenants.length > 0 ? (
-            <Tabs defaultValue={defaultTab} className="w-full">
-                <TabsList>
-                    {groupOrder.map(groupName => {
-                    if(groupedTenants[groupName] && groupedTenants[groupName].length > 0) {
-                        return <TabsTrigger key={groupName} value={groupName}>{groupName}</TabsTrigger>
-                    }
-                    return null;
-                    })}
-                </TabsList>
+            <>
               {groupOrder.map(groupName => {
                   const tenantsInGroup = groupedTenants[groupName];
                   if (!tenantsInGroup || tenantsInGroup.length === 0) return null;
                   
                   return (
-                    <TabsContent value={groupName} key={groupName} className="mt-4">
-                        <Table>
-                            <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[300px]">Tenant</TableHead>
-                                <TableHead>Property</TableHead>
-                                <TableHead>Due Date</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                    <TabsContent value={groupName} key={groupName} className="mt-0">
+                       <div className="columns-1 md:columns-3 gap-6 space-y-6">
                             {tenantsInGroup.map((tenant) => (
-                                <TableRow key={tenant.id}>
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-9 w-9">
-                                            <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                                <Card
+                                  key={tenant.id}
+                                  className={cn('break-inside-avoid border-none transition-all hover:shadow-xl hover:-translate-y-1', {
+                                    'bg-primary text-primary-foreground': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                    'bg-destructive text-destructive-foreground': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                    'bg-accent text-accent-foreground': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
+                                    'bg-background text-foreground border shadow-sm': tenant.isArchived,
+                                  })}
+                                >
+                                <CardHeader className="flex-row items-start justify-between pb-4">
+                                    <div className="flex items-center gap-4">
+                                        <Avatar className="h-10 w-10 border-2 border-white/50">
+                                            <AvatarFallback className={cn({
+                                                'bg-white/20 text-primary-foreground': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                                'bg-white/20 text-destructive-foreground': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                                'bg-white/20 text-accent-foreground': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
+                                                'bg-muted': tenant.isArchived,
+                                            })}>
+                                                <User className="h-5 w-5" />
+                                            </AvatarFallback>
                                         </Avatar>
                                         <div>
-                                            <div className="font-medium">{tenant.name}</div>
-                                            <div className="text-xs text-muted-foreground">{tenant.phone}</div>
+                                            <CardTitle className="text-lg">{tenant.name}</CardTitle>
+                                            <CardDescription className={cn("flex items-center gap-1.5 pt-1 text-xs", {
+                                                'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                                'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                                'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
+                                                'text-muted-foreground': tenant.isArchived,
+                                            })}>
+                                                 <Phone className="h-3 w-3" />
+                                                 {tenant.phone}
+                                            </CardDescription>
                                         </div>
                                     </div>
-                                </TableCell>
-                                <TableCell>{tenant.property.name}</TableCell>
-                                <TableCell>{format(tenant.dueDate, 'do MMMM')}</TableCell>
-                                <TableCell>
-                                    <StatusBadge status={tenant.paymentStatus} />
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem asChild>
-                                                <Link href={`/tenants/${tenant.id}`}>
-                                                    <Eye className="mr-2 h-4 w-4" />
-                                                    View Details
-                                                </Link>
-                                            </DropdownMenuItem>
-                                            <EditTenantForm tenant={tenant} onSave={() => {}} />
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <DropdownMenuItem
-                                                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                                                        onSelect={(e) => e.preventDefault()}
-                                                    >
-                                                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                     {tenant.id ? (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-full", {
+                                                    'hover:bg-white/10': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue' || tenant.paymentStatus === 'Upcoming') && !tenant.isArchived,
+                                                    'hover:bg-accent': tenant.isArchived
+                                                })}>
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                {tenant.isArchived ? (
+                                                     <DropdownMenuItem onClick={() => handleReactivateTenant(tenant.id, tenant.name)}>
+                                                        <UserCheck className="mr-2 h-4 w-4" /> Reactivate Lease
                                                     </DropdownMenuItem>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            This action cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all associated data.
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction
-                                                            className="bg-destructive hover:bg-destructive/90"
-                                                            onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                                                ) : (
+                                                    <>
+                                                    <DropdownMenuItem asChild>
+                                                        <Link href={`/tenants/${tenant.id}`}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            View Details
+                                                        </Link>
+                                                    </DropdownMenuItem>
+                                                    <EditTenantForm tenant={tenant} onSave={() => {}} />
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <DropdownMenuItem
+                                                                onSelect={(e) => e.preventDefault()}
+                                                            >
+                                                                <LogOut className="mr-2 h-4 w-4" /> Mark as Vacant
+                                                            </DropdownMenuItem>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    This will mark <strong>{tenant.name}</strong> as vacant, turning their card white. They will remain in the tenant list and can be reactivated later.
+                                                                </AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction
+                                                                    onClick={() => handleMarkAsVacant(tenant.id, tenant.name)}
+                                                                >
+                                                                    Confirm
+                                                                </AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                    </>
+                                                )}
+                                                <DropdownMenuSeparator />
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                            onSelect={(e) => e.preventDefault()}
                                                         >
-                                                            Delete
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                                </TableRow>
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete Tenant
+                                                        </DropdownMenuItem>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This action is permanent and cannot be undone. This will permanently delete <strong>{tenant.name}</strong> and all their data.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction
+                                                                className="bg-destructive hover:bg-destructive/90"
+                                                                onClick={() => handleDeleteTenant(tenant.id, tenant.name)}
+                                                            >
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    ) : null}
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                     <div className={cn("flex items-center gap-2", {
+                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
+                                        'text-muted-foreground': tenant.isArchived,
+                                    })}>
+                                        <Building className="h-4 w-4 shrink-0" />
+                                        <span>{tenant.property.name}</span>
+                                    </div>
+                                    <div className={cn("flex items-center gap-2", {
+                                        'text-primary-foreground/80': tenant.paymentStatus === 'Paid' && !tenant.isArchived,
+                                        'text-destructive-foreground/80': tenant.paymentStatus === 'Overdue' && !tenant.isArchived,
+                                        'text-accent-foreground/80': tenant.paymentStatus === 'Upcoming' && !tenant.isArchived,
+                                        'text-muted-foreground': tenant.isArchived,
+                                    })}>
+                                        <CalendarDays className="h-4 w-4 shrink-0" />
+                                        <span>
+                                            Due on {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                                                ? format(tenant.dueDate, 'do MMMM')
+                                                : 'N/A'}
+                                        </span>
+                                    </div>
+                                </CardContent>
+                                <CardFooter>
+                                     <Badge variant={tenant.isArchived ? "secondary" : tenant.paymentStatus === 'Paid' ? 'success' : tenant.paymentStatus === 'Overdue' ? 'destructive' : 'upcoming'} className={cn("font-semibold", {
+                                        'border-white/50 text-white bg-transparent': (tenant.paymentStatus === 'Paid' || tenant.paymentStatus === 'Overdue' || tenant.paymentStatus === 'Upcoming') && !tenant.isArchived,
+                                    })}>
+                                        {tenant.isArchived ? 'Vacant' : tenant.paymentStatus}
+                                    </Badge>
+                                </CardFooter>
+                                </Card>
                             ))}
-                            </TableBody>
-                        </Table>
+                        </div>
                     </TabsContent>
                   )
               })}
-            </Tabs>
+            </>
         ) : (
              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 py-24 text-center">
                 <h3 className="mt-4 text-lg font-semibold">No Tenants Found</h3>
                 <p className="mb-4 mt-2 text-sm text-muted-foreground">Try adjusting your search or add a new tenant to get started.</p>
             </div>
         )}
-    </div>
+       </div>
+    </Tabs>
   );
 }

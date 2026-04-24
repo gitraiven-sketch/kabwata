@@ -6,9 +6,8 @@
  * - ReceiptEmailInput - The input type for the generateReceiptEmail function.
  * - ReceiptEmailOutput - The return type for the generateReceiptEmail function.
  */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai';
+import { z } from 'zod';
 
 const ReceiptEmailInputSchema = z.object({
   tenantName: z.string().describe('The name of the tenant.'),

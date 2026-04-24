@@ -53,7 +53,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isUserLoading && user) {
-      router.replace('/dashboard');
+      router.replace('/');
     }
   }, [user, isUserLoading, router]);
 
@@ -84,7 +84,7 @@ export default function LoginPage() {
             title: 'Login Successful',
             description: "Welcome back!",
         });
-        router.push('/dashboard');
+        router.push('/');
       }
 
     } catch (error: any) {
@@ -107,7 +107,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4" style={{backgroundColor: 'hsl(199, 89%, 95%)'}}>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm shadow-2xl">
         <form onSubmit={handleLogin}>
           <CardHeader className="text-center">

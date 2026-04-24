@@ -1,13 +1,13 @@
-
 export type Tenant = {
   id: string;
+  uid?: string;
   name: string;
   phone: string;
   propertyId: string;
-  rentAmount: number;
   paymentDay: number; // Day of the month rent is due
   leaseStartDate: string;
   lastPaidDate?: string; // ISO date string
+  isArchived?: boolean;
 };
 
 export type Property = {
@@ -36,4 +36,15 @@ export type TenantWithDetails = Tenant & {
   property: Property;
   paymentStatus: PaymentStatus;
   dueDate: Date;
+};
+
+export type PaymentProofStatus = 'pending' | 'approved' | 'rejected';
+
+export type PaymentProof = {
+  id: string;
+  tenantId: string;
+  amountInWords: string;
+  uploadedAt: any; // Can be an ISO date string or a Firestore Timestamp
+  status: PaymentProofStatus;
+  adminNotes?: string;
 };

@@ -6,14 +6,12 @@
  * - AdminOverdueNoticeInput - The input type for the function.
  * - AdminOverdueNoticeOutput - The return type for the function.
  */
-
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai';
+import { z } from 'zod';
 
 const OverdueTenantDetailSchema = z.object({
   tenantName: z.string().describe("The name of the overdue tenant."),
   propertyName: z.string().describe("The property the tenant occupies."),
-  rentAmount: z.number().describe("The rent amount that is overdue."),
   daysOverdue: z.string().describe("How long the payment has been overdue (e.g., '5 days')."),
 });
 
@@ -45,7 +43,6 @@ Here is the list of overdue tenants:
 {{#each overdueTenants}}
 - Tenant: {{tenantName}}
   - Property: {{propertyName}}
-  - Amount: K{{rentAmount}}
   - Overdue by: {{daysOverdue}}
 {{/each}}
 

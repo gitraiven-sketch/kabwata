@@ -332,7 +332,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     },
     (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: tenantsQuery.path,
+            path: 'tenants',
             operation: 'list',
         }, auth);
         errorEmitter.emit('permission-error', permissionError);
@@ -418,7 +418,11 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
                                         </div>
                                     </TableCell>
                                     <TableCell>{tenant.property.name}</TableCell>
-                                    <TableCell>{format(tenant.dueDate, 'do MMMM')}</TableCell>
+                                    <TableCell>
+                                        {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                                            ? format(tenant.dueDate, 'do MMMM')
+                                            : 'N/A'}
+                                    </TableCell>
                                     <TableCell>
                                         <StatusBadge status={tenant.paymentStatus} />
                                     </TableCell>
