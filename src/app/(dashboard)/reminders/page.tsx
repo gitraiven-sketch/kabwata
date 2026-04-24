@@ -1,11 +1,13 @@
 'use client';
 
-import { getTenantsWithDetails } from '@/lib/data-helpers';
+import { getPaymentStatus } from '@/lib/data-helpers';
 import { CategorizedRentReminders } from '@/components/reminders/rent-reminder';
 import { useEffect, useState } from 'react';
-import type { TenantWithDetails } from '@/lib/types';
+import type { Tenant, TenantWithDetails, Property } from '@/lib/types';
+import { useFirestore } from '@/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
-import { differenceInDays, isToday } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 
 type CategorizedTenants = {
   dueIn3Days: TenantWithDetails[];
@@ -25,12 +27,33 @@ export default function RemindersPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  const firestore = useFirestore();
+
   useEffect(() => {
     const fetchAndCategorizeTenants = async () => {
+      if (!firestore) return;
+
       try {
-        const tenants = await getTenantsWithDetails();
+        const [tenantSnapshot, propertySnapshot] = await Promise.all([
+          getDocs(collection(firestore, 'tenants')),
+          getDocs(collection(firestore, 'properties')),
+        ]);
+
+        const properties: Property[] = propertySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        } as Property));
+
+        const propertyMap = new Map<string, Property>(
+          properties.map((property) => [property.id, property])
+        );
+
+        const tenants: Tenant[] = tenantSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Tenant))
+          .filter((tenant) => !tenant.isArchived);
+
         const today = new Date();
-        today.setHours(0,0,0,0); // Normalize to start of day
+        today.setHours(0, 0, 0, 0);
 
         const categories: CategorizedTenants = {
           dueIn3Days: [],
@@ -39,43 +62,63 @@ export default function RemindersPage() {
           dueToday: [],
           overdue: [],
         };
-        
-        tenants.forEach(tenant => {
-          if (tenant.paymentStatus === 'Paid') return;
 
-          const dueDate = new Date(tenant.dueDate);
-          dueDate.setHours(0,0,0,0); // Normalize to start of day
+        tenants.forEach((tenant) => {
+          const property = propertyMap.get(tenant.propertyId);
+          const { status, dueDate } = getPaymentStatus(tenant);
 
-          const diff = differenceInDays(dueDate, today);
-          
+          const tenantWithDetails: TenantWithDetails = {
+            ...tenant,
+            property:
+              property ||
+              ({
+                id: tenant.propertyId,
+                name: 'Unknown Property',
+                group: 'Unknown',
+                shopNumber: 0,
+                address: '',
+                paymentDay: tenant.paymentDay,
+              } as Property),
+            paymentStatus: status,
+            dueDate,
+          };
+
+          if (tenantWithDetails.paymentStatus === 'Paid') return;
+
+          const dueDateNormalized = new Date(tenantWithDetails.dueDate);
+          dueDateNormalized.setHours(0, 0, 0, 0);
+
+          const diff = differenceInDays(dueDateNormalized, today);
+
           if (diff < 0) {
-            categories.overdue.push(tenant);
+            categories.overdue.push(tenantWithDetails);
           } else if (diff === 0) {
-            categories.dueToday.push(tenant);
+            categories.dueToday.push(tenantWithDetails);
           } else if (diff === 1) {
-            categories.dueIn1Day.push(tenant);
+            categories.dueIn1Day.push(tenantWithDetails);
           } else if (diff === 2) {
-            categories.dueIn2Days.push(tenant);
+            categories.dueIn2Days.push(tenantWithDetails);
           } else if (diff === 3) {
-            categories.dueIn3Days.push(tenant);
+            categories.dueIn3Days.push(tenantWithDetails);
           }
         });
-        
-        // Sort each category alphabetically
+
         for (const category in categories) {
-            categories[category as keyof CategorizedTenants].sort((a, b) => a.name.localeCompare(b.name));
+          categories[category as keyof CategorizedTenants].sort((a, b) =>
+            a.name.localeCompare(b.name)
+          );
         }
 
         setCategorizedTenants(categories);
       } catch (error) {
-        console.error("Failed to fetch or categorize tenants:", error);
+        console.error('Failed to fetch or categorize tenants:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchAndCategorizeTenants();
-  }, []);
+  }, [firestore]);
 
 
   return (

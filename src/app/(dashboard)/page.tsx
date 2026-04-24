@@ -106,7 +106,7 @@ export default function DashboardPage() {
             ) : overdueTenants.length > 0 ? (
               <div className="space-y-4">
                 {overdueTenants.map((tenant) => (
-                   <Link href={`/tenants/${tenant.id}`} key={tenant.id} className="block">
+                   <Link href={`/tenants/${tenant.id}`} key={tenant.id || `tenant-${Math.random()}`} className="block">
                       <Card className="transition-all hover:shadow-md hover:bg-destructive/10 bg-destructive/5 border-destructive/20">
                           <CardHeader className="flex-row items-center justify-between p-4">
                               <div className="flex items-center gap-3">

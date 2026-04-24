@@ -61,7 +61,15 @@ function PropertyForm({
   
   const isEditMode = !!property;
 
-  const [formData, setFormData] = React.useState(
+  const [formData, setFormData] = React.useState<Property | {
+    name: string;
+    group: string;
+    shopNumber: number;
+    startShopNumber: number;
+    endShopNumber: number;
+    address: string;
+    paymentDay: number;
+  }>(
     property || {
       name: '',
       group: 'Group A',
@@ -119,7 +127,15 @@ function PropertyForm({
                 description: `${formData.name} has been successfully updated.`,
             });
         } else {
-            const { startShopNumber, endShopNumber, group, address, paymentDay } = formData;
+            const { startShopNumber, endShopNumber, group, address, paymentDay } = formData as {
+              name: string;
+              group: string;
+              shopNumber: number;
+              startShopNumber: number;
+              endShopNumber: number;
+              address: string;
+              paymentDay: number;
+            };
             if (startShopNumber <= 0 || endShopNumber <= 0 || endShopNumber < startShopNumber) {
                 toast({ variant: 'destructive', title: 'Invalid Shop Range', description: 'Please enter a valid start and end shop number.'});
                 setIsLoading(false);
@@ -197,11 +213,11 @@ function PropertyForm({
                 <>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="startShopNumber" className="text-right">Start Shop</Label>
-                        <Input id="startShopNumber" name="startShopNumber" type="number" value={formData.startShopNumber} onChange={handleChange} required className="col-span-3" />
+                        <Input id="startShopNumber" name="startShopNumber" type="number" value={(formData as any).startShopNumber} onChange={handleChange} required className="col-span-3" />
                     </div>
                      <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="endShopNumber" className="text-right">End Shop</Label>
-                        <Input id="endShopNumber" name="endShopNumber" type="number" value={formData.endShopNumber} onChange={handleChange} required className="col-span-3" />
+                        <Input id="endShopNumber" name="endShopNumber" type="number" value={(formData as any).endShopNumber} onChange={handleChange} required className="col-span-3" />
                     </div>
                 </>
              )}
@@ -328,7 +344,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
 
 
   const propertyGroups = React.useMemo(() => {
-    const groups = new Set(properties.map(p => p.group));
+    const groups = new Set(properties.map(p => p.group || 'Unknown').filter(g => g));
     return ['all', ...Array.from(groups).sort()];
   }, [properties]);
 
@@ -359,7 +375,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
       <div className="sticky top-[64px] z-10 space-y-4 border-b bg-background/95 pb-4 pt-2 backdrop-blur-sm">
         <TabsList>
           {propertyGroups.map(group => (
-            <TabsTrigger key={group} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
+            <TabsTrigger key={group || `group-${Math.random()}`} value={group}>{group === 'all' ? 'All Shops': group}</TabsTrigger>
           ))}
         </TabsList>
       </div>
@@ -376,7 +392,7 @@ export function PropertyList({ properties: initialProperties }: { properties: Pr
                 
                 return (
                   <Card 
-                    key={property.id} 
+                    key={property.id || `property-${Math.random()}`} 
                     className={cn(
                         "overflow-hidden flex flex-col transition-all duration-300 ease-in-out hover:shadow-xl hover:-translate-y-1",
                         {

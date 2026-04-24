@@ -332,7 +332,7 @@ export function TenantList({ tenants: initialTenants }: { tenants: TenantWithDet
     },
     (serverError) => {
         const permissionError = new FirestorePermissionError({
-            path: tenantsQuery.path,
+            path: 'tenants',
             operation: 'list',
         }, auth);
         errorEmitter.emit('permission-error', permissionError);

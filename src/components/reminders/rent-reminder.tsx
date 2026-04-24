@@ -219,3 +219,38 @@ export function CategorizedRentReminders({ categorizedTenants }: { categorizedTe
     </div>
   );
 }
+
+export function RentReminder({ tenants }: { tenants: TenantWithDetails[] }) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  const categorizedTenants: CategorizedTenants = {
+    dueIn3Days: [],
+    dueIn2Days: [],
+    dueIn1Day: [],
+    dueToday: [],
+    overdue: [],
+  };
+
+  tenants.forEach((tenant) => {
+    if (!(tenant.dueDate instanceof Date) || isNaN(tenant.dueDate.getTime())) return;
+    
+    const dueDate = new Date(tenant.dueDate.getFullYear(), tenant.dueDate.getMonth(), tenant.dueDate.getDate());
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      categorizedTenants.overdue.push(tenant);
+    } else if (diffDays === 0) {
+      categorizedTenants.dueToday.push(tenant);
+    } else if (diffDays === 1) {
+      categorizedTenants.dueIn1Day.push(tenant);
+    } else if (diffDays === 2) {
+      categorizedTenants.dueIn2Days.push(tenant);
+    } else if (diffDays === 3) {
+      categorizedTenants.dueIn3Days.push(tenant);
+    }
+  });
+
+  return <CategorizedRentReminders categorizedTenants={categorizedTenants} />;
+}
