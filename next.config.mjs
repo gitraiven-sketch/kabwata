@@ -3,9 +3,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       {
@@ -27,17 +24,6 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
-  },
-  experimental: {
-    turbopack: {
-      resolveAlias: {
-        './utils': './utils.ts',
-        './lib': './lib.ts',
-      },
-      loaders: {
-        '.js': ['jsx'],
-      },
-    },
   },
 };
 
