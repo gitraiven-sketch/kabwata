@@ -12,6 +12,11 @@ node_modules/
 !.yarn/releases
 !.yarn/versions
 
+# next.js
+/.next/
+**/.next/
+/out/
+
 # testing
 /coverage
 
