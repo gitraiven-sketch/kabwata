@@ -28,7 +28,7 @@ import {
   CheckCircle2,
   DollarSign,
 } from 'lucide-react';
-import type { TenantWithDetails, PaymentStatus, Tenant, Property } from '@/lib/types';
+import type { TenantWithDetails, PaymentStatus, Tenant, Property, PaymentProof } from '@/lib/types';
 import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore, useUser } from '@/firebase';
