@@ -1,0 +1,10 @@
+# Settings to manage and configure a Firebase App Hosting backend.
+# https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  # By setting minInstances to 1, you can reduce cold starts and
+  # improve the initial response time of your application.
+  minInstances: 1
+  # Increase this value if you'd like to automatically spin up
+  # more instances in response to increased traffic.
+  maxInstances: 1

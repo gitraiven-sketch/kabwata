@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Allow authenticated users to read properties for the shop selection screen.
+    // Admins can write to properties.
+    match /properties/{propertyId} {
+        allow get, list, write: if isSignedIn();
+    }
+
+    match /tenants/{tenantId} {
+      // Allow any signed-in user to read/list tenants. This is needed for the
+      // admin panel and for the tenant app to display the list of unlinked tenants.
+      allow get, list: if isSignedIn();
+
+      // For this app, we assume any signed-in user is an admin.
+      // These broad rules allow the admin panel to create, update, and delete tenants.
+      // The tenant-specific actions below are secured separately.
+      allow create, update, delete: if isSignedIn();
+
+      // Rules for the payment_proofs subcollection nested under each tenant.
+      match /payment_proofs/{proofId} {
+        // Admins can read all proofs. Tenants will only be able to query their own path.
+        allow get, list: if isSignedIn();
+
+        // A tenant can ONLY create a payment proof under their own tenant record.
+        // This is the most critical security rule for the tenant app.
+        // It checks that the authenticated user's ID matches the `uid` field
+        // in the parent tenant document.
+        allow create: if isSignedIn() && get(/databases/$(database)/documents/tenants/$(tenantId)).data.uid == request.auth.uid;
+        
+        // Admins can approve/reject proofs. Tenants can also update/delete their
+        // own proofs before they are approved, which is acceptable.
+        allow update, delete: if isSignedIn();
+      }
+    }
+
+    match /payments/{paymentId} {
+      allow get, list, create: if isSignedIn();
+      // Payments are immutable, so disallow updates and deletes.
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,128 @@
+
+'use client';
+
+import { DashboardClient } from '@/components/dashboard/dashboard-client';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { User, Loader2 } from 'lucide-react';
+import { useFirestore } from '@/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import type { TenantWithDetails } from '@/lib/types';
+import { getTenantsWithDetails } from '@/lib/data-helpers';
+import { formatDistanceToNow } from 'date-fns';
+
+export default function DashboardPage() {
+  const [overdueTenants, setOverdueTenants] = useState<TenantWithDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const firestore = useFirestore();
+
+  useEffect(() => {
+    if (!firestore) return;
+    
+    // We can use the existing helper, but it needs to be adapted for client-side use
+    // For now, let's just listen to tenants and update status.
+    const tenantsRef = collection(firestore, 'tenants');
+    const unsubscribe = onSnapshot(tenantsRef, async () => {
+      // Re-fetch all data when tenants change. This is inefficient but will work for now.
+      // A more optimized approach would listen to payments and properties as well.
+      try {
+        const data = await getTenantsWithDetails();
+        setOverdueTenants(data.filter(t => t.paymentStatus === 'Overdue'));
+      } catch (e) {
+        console.error("Error fetching tenant details for dashboard:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [firestore]);
+
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground">
+          Welcome back! Here's a summary of your complex.
+        </p>
+      </div>
+
+      <DashboardClient />
+
+      <div className="grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Overdue Payments</CardTitle>
+            <CardDescription>
+              Tenants who have not paid their rent for the current period.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Property</TableHead>
+                  <TableHead className="text-right">Due Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center">
+                      <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+                    </TableCell>
+                  </TableRow>
+                ) : overdueTenants.length > 0 ? (
+                  overdueTenants.map((tenant) => (
+                    <TableRow key={tenant.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                              <AvatarFallback><User className="h-4 w-4" /></AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{tenant.name}</div>
+                            <div className="text-xs text-muted-foreground">{tenant.phone}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{tenant.property.name}</TableCell>
+                      <TableCell className="text-right">
+                        {tenant.dueDate instanceof Date && !isNaN(tenant.dueDate.getTime())
+                          ? formatDistanceToNow(tenant.dueDate, { addSuffix: true })
+                          : 'N/A'}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center">
+                      No overdue payments. Great job!
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
